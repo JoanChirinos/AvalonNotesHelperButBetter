@@ -27,7 +27,7 @@ async fn main() {
         .with_state(state)
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8008").await.unwrap();
-    tracing::info!("Listening on http://localhost:8008");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8337").await.unwrap();
+    tracing::info!("Listening on http://localhost:8337");
     axum::serve(listener, app).await.unwrap();
 }
