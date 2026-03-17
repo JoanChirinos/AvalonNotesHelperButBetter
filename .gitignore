@@ -27,3 +27,7 @@ mise.toml
 
 # Generated launchd plists
 *.plist
+
+# SQLite WAL files
+*.db-shm
+*.db-wal

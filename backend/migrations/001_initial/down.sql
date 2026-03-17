@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS notes;
+DROP TABLE IF EXISTS assassination_attempts;
+DROP TABLE IF EXISTS plot_cards;
+DROP TABLE IF EXISTS lancelot_switches;
+DROP TABLE IF EXISTS lady_holders;
+DROP TABLE IF EXISTS lady_investigations;
+DROP TABLE IF EXISTS round_votes;
+DROP TABLE IF EXISTS round_teams;
+DROP TABLE IF EXISTS rounds;
+DROP TABLE IF EXISTS quests;
+DROP TABLE IF EXISTS game_modules;
+DROP TABLE IF EXISTS game_roles;
+DROP TABLE IF EXISTS players;
+DROP TABLE IF EXISTS games;
+DROP TABLE IF EXISTS known_players;
