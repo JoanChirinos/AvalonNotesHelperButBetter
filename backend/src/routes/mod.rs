@@ -22,6 +22,7 @@ pub fn api_routes() -> Router<AppState> {
         .route("/games/{game_id}/players/{player_id}", patch(games::update_player))
         .route("/games/{game_id}/players/{player_id}", axum::routing::delete(games::delete_player))
         // Roles & Modules (for setup)
+        .route("/games/{game_id}/players/reorder", post(games::reorder_players))
         .route("/games/{game_id}/roles", post(games::add_role))
         .route("/games/{game_id}/roles/{role_id}", axum::routing::delete(games::delete_role))
         .route("/games/{game_id}/modules", post(games::add_module))

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from '../api';
-  import type { GameSummary } from '../types';
+  import type { GameSummary, Role } from '../types';
   import { teamForRole, ROLE_DISPLAY_NAMES } from '../constants';
 
   interface Props {
@@ -128,7 +128,32 @@
               <span class="badge badge-sm badge-outline">{summary.player_names.length} players</span>
             </div>
             {#if summary.player_names.length > 0}
-              <div class="text-sm mt-1">{summary.player_names.join(', ')}</div>
+              {@const paired = summary.player_names.map((name, i) => ({ name, role: summary.player_roles[i] })).sort((a, b) => {
+                // Good first, then evil, then unassigned
+                const teamA = a.role ? teamForRole(a.role) : 'z';
+                const teamB = b.role ? teamForRole(b.role) : 'z';
+                if (teamA !== teamB) return teamA === 'good' ? -1 : 1;
+                return a.name.localeCompare(b.name);
+              })}
+              <div class="flex flex-wrap gap-1 mt-1">
+                {#each paired as { name, role }}
+                  <span
+                    class="rounded-full px-2 py-0.5 text-xs"
+                    class:bg-success={role && teamForRole(role) === 'good'}
+                    class:text-success-content={role && teamForRole(role) === 'good'}
+                    class:bg-error={role && teamForRole(role) === 'evil'}
+                    class:text-error-content={role && teamForRole(role) === 'evil'}
+                    class:bg-base-200={!role}
+                  >{name}</span>
+                {/each}
+              </div>
+            {/if}
+            {#if summary.result}
+              <div class="mt-1">
+                <span class="badge badge-sm" class:badge-success={summary.result === 'good'} class:badge-error={summary.result === 'evil'}>
+                  {summary.result === 'good' ? 'Good Wins' : 'Evil Wins'}
+                </span>
+              </div>
             {/if}
           </div>
         </button>

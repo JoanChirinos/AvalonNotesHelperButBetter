@@ -147,7 +147,9 @@ export interface Note {
 export interface GameSummary {
   game: Game;
   player_names: string[];
+  player_roles: (Role | null)[];
   has_started: boolean;
+  result: 'good' | 'evil' | null;
 }
 
 export interface RoundState {

@@ -342,6 +342,11 @@ pub struct AddPlayerRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ReorderPlayersRequest {
+    pub player_ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AddRoleRequest {
     pub role: Role,
 }
@@ -439,7 +444,9 @@ pub struct UpdateNoteRequest {
 pub struct GameSummary {
     pub game: Game,
     pub player_names: Vec<String>,
+    pub player_roles: Vec<Option<String>>,
     pub has_started: bool,
+    pub result: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

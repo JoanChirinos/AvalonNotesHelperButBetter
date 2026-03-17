@@ -137,13 +137,16 @@ pub async fn list_games(
 
     let mut summaries = Vec::new();
     for game in games {
-        let names: Vec<String> = schema::players::table
+        let players_data: Vec<(String, Option<String>)> = schema::players::table
             .inner_join(schema::known_players::table)
             .filter(schema::players::game_id.eq(&game.id))
             .order(schema::players::seat_order.asc())
-            .select(schema::known_players::name)
+            .select((schema::known_players::name, schema::players::role))
             .load(&mut conn)
             .map_err(db_err)?;
+
+        let names: Vec<String> = players_data.iter().map(|(n, _)| n.clone()).collect();
+        let roles: Vec<Option<String>> = players_data.iter().map(|(_, r)| r.clone()).collect();
 
         let quest_ids: Vec<String> = schema::quests::table
             .filter(schema::quests::game_id.eq(&game.id))
@@ -157,10 +160,43 @@ pub async fn list_games(
             .get_result(&mut conn)
             .map_err(db_err)?;
 
+        let game_id_ref = game.id.clone();
         summaries.push(GameSummary {
             game,
             player_names: names,
+            player_roles: roles,
             has_started: round_count > 0,
+            result: {
+                let successes = schema::quests::table
+                    .filter(schema::quests::game_id.eq(&game_id_ref))
+                    .filter(schema::quests::result.eq("success"))
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .unwrap_or(0);
+                let fails = schema::quests::table
+                    .filter(schema::quests::game_id.eq(&game_id_ref))
+                    .filter(schema::quests::result.eq("fail"))
+                    .count()
+                    .get_result::<i64>(&mut conn)
+                    .unwrap_or(0);
+                if fails >= 3 {
+                    Some("evil".to_string())
+                } else if successes >= 3 {
+                    // Check assassination
+                    let snipe = schema::assassination_attempts::table
+                        .filter(schema::assassination_attempts::game_id.eq(&game_id_ref))
+                        .filter(schema::assassination_attempts::phase.eq(2))
+                        .first::<AssassinationAttempt>(&mut conn)
+                        .ok();
+                    match snipe {
+                        Some(a) if a.correct == 1 => Some("evil".to_string()),
+                        Some(_) => Some("good".to_string()),
+                        None => Some("good".to_string()), // no assassination roles
+                    }
+                } else {
+                    None
+                }
+            },
         });
     }
 
@@ -257,6 +293,34 @@ pub async fn add_player(
     broadcast(&state, &game_id).await;
     let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
     Ok((StatusCode::CREATED, Json(game_state)))
+}
+
+pub async fn reorder_players(
+    State(state): State<AppState>,
+    Path(game_id): Path<String>,
+    Json(req): Json<ReorderPlayersRequest>,
+) -> ApiResult<impl IntoResponse> {
+    let mut conn = state.db.get().expect("DB connection");
+
+    // First pass: set all to temporary high values to avoid unique conflicts
+    for (i, pid) in req.player_ids.iter().enumerate() {
+        diesel::update(schema::players::table.find(pid))
+            .set(schema::players::seat_order.eq((i as i32 + 1) + 1000))
+            .execute(&mut conn)
+            .map_err(db_err)?;
+    }
+
+    // Second pass: set final values
+    for (i, pid) in req.player_ids.iter().enumerate() {
+        diesel::update(schema::players::table.find(pid))
+            .set(schema::players::seat_order.eq(i as i32 + 1))
+            .execute(&mut conn)
+            .map_err(db_err)?;
+    }
+
+    broadcast(&state, &game_id).await;
+    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    Ok(Json(game_state))
 }
 
 pub async fn update_player(

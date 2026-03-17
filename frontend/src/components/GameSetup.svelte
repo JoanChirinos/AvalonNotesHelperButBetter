@@ -2,7 +2,8 @@
   import { api } from '../api';
   import type { FullGameState, KnownPlayer, Role, Module } from '../types';
   import { GOOD_ROLES, EVIL_ROLES, ROLE_DISPLAY_NAMES, ROLE_BUNDLES } from '../constants';
-  import { X, Minus, Plus, Swords } from 'lucide-svelte';
+  import { X, Minus, Plus, Swords, GripVertical } from 'lucide-svelte';
+  import Sortable from 'sortablejs';
 
   interface Props {
     gameState: FullGameState;
@@ -153,6 +154,42 @@
     }
   }
 
+  let playerListEl: HTMLDivElement;
+  let sortableInstance: any = null;
+
+  async function reorderPlayers(oldIndex: number, newIndex: number) {
+    if (oldIndex === newIndex) return;
+    try {
+      const reordered = [...players];
+      const [moved] = reordered.splice(oldIndex, 1);
+      reordered.splice(newIndex, 0, moved);
+      await api.reorderPlayers(gameId, reordered.map(p => p.id));
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  $effect(() => {
+    if (playerListEl && !sortableInstance) {
+      sortableInstance = Sortable.create(playerListEl, {
+        animation: 150,
+        handle: '.drag-handle',
+        onEnd: (evt: any) => {
+          // Revert DOM change — let Svelte handle rendering from state
+          const parent = evt.from;
+          if (evt.oldIndex < evt.newIndex) {
+            parent.insertBefore(evt.item, parent.children[evt.oldIndex]);
+          } else {
+            parent.insertBefore(evt.item, parent.children[evt.oldIndex + 1]);
+          }
+          if (evt.oldIndex !== undefined && evt.newIndex !== undefined) {
+            reorderPlayers(evt.oldIndex, evt.newIndex);
+          }
+        },
+      });
+    }
+  });
+
   $effect(() => {
     loadKnownPlayers();
   });
@@ -211,13 +248,17 @@
         {/if}
 
         <!-- Current players -->
-        <div class="space-y-1">
+        <div class="space-y-1" bind:this={playerListEl}>
           {#each players as player, i}
-            <div class="flex items-center justify-between bg-base-200 rounded-lg px-3 py-2">
-              <span class="text-sm">
-                <span class="text-base-content/50 mr-2">{i + 1}.</span>
-                {playerName(player.known_player_id)}
-              </span>
+            <div class="flex items-center justify-between bg-base-200 rounded-lg px-3 py-2" data-id={player.id}>
+              <div class="flex items-center gap-2">
+                <span class="drag-handle cursor-grab active:cursor-grabbing text-base-content/30 hover:text-base-content/60">
+                  <GripVertical size={14} />
+                </span>
+                <span class="text-sm">
+                  {playerName(player.known_player_id)}
+                </span>
+              </div>
               <button
                 class="btn btn-ghost btn-xs text-error"
                 onclick={() => removePlayer(player.id)}

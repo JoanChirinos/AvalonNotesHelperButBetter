@@ -29,6 +29,8 @@ export const api = {
   // Players
   addPlayer: (gameId: string, data: { known_player_id?: string; name?: string }) =>
     request<FullGameState>('POST', `/games/${gameId}/players`, data),
+  reorderPlayers: (gameId: string, playerIds: string[]) =>
+    request<FullGameState>('POST', `/games/${gameId}/players/reorder`, { player_ids: playerIds }),
   updatePlayer: (gameId: string, playerId: string, data: UpdatePlayer) =>
     request<FullGameState>('PATCH', `/games/${gameId}/players/${playerId}`, data),
   deletePlayer: (gameId: string, playerId: string) =>
