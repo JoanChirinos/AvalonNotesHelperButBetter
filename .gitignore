@@ -1,0 +1,29 @@
+# Backend
+backend/target/
+backend/*.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Rust
+debug/
+**/*.rs.bk
+*.pdb
+**/mutants.out*/
+
+# Misc
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+
+# mise
+mise.toml
+
+# Generated launchd plists
+*.plist
