@@ -33,6 +33,7 @@ diesel::table! {
         id -> Text,
         created_at -> Text,
         finished_at -> Nullable<Text>,
+        deleted_at -> Nullable<Text>,
         current_quest -> Integer,
     }
 }

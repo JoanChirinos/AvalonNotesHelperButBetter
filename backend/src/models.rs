@@ -13,6 +13,7 @@ pub struct Game {
     pub id: String,
     pub created_at: String,
     pub finished_at: Option<String>,
+    pub deleted_at: Option<String>,
     pub current_quest: i32,
 }
 

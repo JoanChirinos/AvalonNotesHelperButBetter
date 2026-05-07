@@ -3,7 +3,7 @@
   import { api } from '../api';
   import type { FullGameState, KnownPlayer, Role, Module } from '../types';
   import { GOOD_ROLES, EVIL_ROLES, ROLE_DISPLAY_NAMES, ROLE_BUNDLES } from '../constants';
-  import { X, Minus, Plus, Swords, GripVertical } from 'lucide-svelte';
+  import { X, Minus, Plus, Swords, GripVertical, Trash2 } from 'lucide-svelte';
   import Sortable from 'sortablejs';
 
   interface Props {
@@ -143,13 +143,22 @@
 
   async function startGame() {
     try {
-      // Create first round of Quest 1 with seat 1 as leader, empty team
       const quest1 = gameState.quests[0];
       const firstLeader = players[Math.floor(Math.random() * players.length)];
       await api.createRound(gameId, quest1.quest.id, {
         leader_player_id: firstLeader.id,
         team_player_ids: [],
       });
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  async function cancelGame() {
+    if (!confirm('Delete this game? It can be recovered later if needed.')) return;
+    try {
+      await api.deleteGame(gameId);
+      onNavigate('#/');
     } catch (e) {
       error = String(e);
     }
@@ -374,7 +383,10 @@
     </div>
   </div>
 
-  <div class="flex justify-center mt-6">
+  <div class="flex items-center justify-center gap-4 mt-6">
+    <button class="btn btn-ghost btn-sm text-error" onclick={cancelGame}>
+      <Trash2 size={16} /> Delete Game
+    </button>
     <button
       class="btn btn-lg btn-primary"
       disabled={!canStart}

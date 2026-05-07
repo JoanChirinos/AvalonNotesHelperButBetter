@@ -130,6 +130,7 @@ pub async fn list_games(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = get_conn(&state.db)?;
     let games = schema::games::table
+        .filter(schema::games::deleted_at.is_null())
         .order(schema::games::created_at.desc())
         .load::<Game>(&mut conn)
         .map_err(db_err)?;
@@ -242,6 +243,18 @@ pub async fn update_game(
 
     let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
+}
+
+pub async fn delete_game(
+    State(state): State<AppState>,
+    Path(game_id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    let mut conn = get_conn(&state.db)?;
+    diesel::update(schema::games::table.find(&game_id))
+        .set(schema::games::deleted_at.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("strftime('%Y-%m-%dT%H:%M:%SZ', 'now')")))
+        .execute(&mut conn)
+        .map_err(db_err)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ── Players ──

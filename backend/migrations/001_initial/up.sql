@@ -9,6 +9,7 @@ CREATE TABLE games (
     id TEXT PRIMARY KEY NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     finished_at TEXT,
+    deleted_at TEXT,
     current_quest INTEGER NOT NULL DEFAULT 1 CHECK (current_quest BETWEEN 1 AND 5)
 );
 

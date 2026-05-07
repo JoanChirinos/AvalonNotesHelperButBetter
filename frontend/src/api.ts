@@ -23,6 +23,7 @@ export const api = {
   getGame: (id: string) => request<FullGameState>('GET', `/games/${id}`),
   createGame: (data: CreateGame) => request<FullGameState>('POST', '/games', data),
   updateGame: (id: string, data: UpdateGame) => request<FullGameState>('PATCH', `/games/${id}`, data),
+  deleteGame: (id: string) => request<void>('DELETE', `/games/${id}`),
 
   // Known players
   listKnownPlayers: () => request<KnownPlayer[]>('GET', '/known-players'),
