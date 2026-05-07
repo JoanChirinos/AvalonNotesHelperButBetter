@@ -24,7 +24,7 @@
 
   let roleCount = $derived(roles.length);
   let playerCount = $derived(players.length);
-  let canStart = $derived(playerCount >= 5 && playerCount <= 10 && roleCount === playerCount);
+  let canStart = $derived(playerCount > 0 && roleCount === playerCount);
 
   let enabledModules = $derived(new Set(modules.map(m => m.module)));
 
