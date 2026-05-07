@@ -3,7 +3,7 @@
   import { api } from '../api';
   import type { FullGameState, ClaimedAffiliation } from '../types';
   import { playerNameById } from '../derived';
-  import { X, Play, Pause, RotateCcw, Eye } from 'lucide-svelte';
+  import { X, Play, Pause, RotateCcw, Eye, ArrowBigRight } from 'lucide-svelte';
 
   interface Props {
     gameState: FullGameState;
@@ -148,20 +148,20 @@
 <!-- Lady chain display + reopen button -->
 {#if shouldShow && !open}
   <div class="flex items-center gap-1 flex-wrap">
+    <button class="btn btn-xs btn-ghost" onclick={() => open = true}>
+      <Eye size={14} />
+    </button>
     {#if investigations.length > 0}
       {#each investigations as inv, i}
         {#if i === 0}
           <span class="text-xs font-medium">{playerNameById(gameState, inv.investigator_player_id)}</span>
         {/if}
-        <Eye size={14} class={inv.claimed_affiliation === 'good' ? 'text-success' : 'text-error'} />
+        <ArrowBigRight size={14} class={inv.claimed_affiliation === 'good' ? 'text-success' : 'text-error'} />
         <span class="text-xs font-medium">{playerNameById(gameState, inv.target_player_id)}</span>
       {/each}
     {:else if initialLadyPlayerId}
       <span class="text-xs font-medium">{playerNameById(gameState, initialLadyPlayerId)}</span>
     {/if}
-    <button class="btn btn-xs btn-ghost" onclick={() => open = true}>
-      <Eye size={14} />
-    </button>
   </div>
 {/if}
 
