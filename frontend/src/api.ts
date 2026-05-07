@@ -1,6 +1,7 @@
 import type { FullGameState, Game, KnownPlayer, GameSummary, CreateGame, UpdateGame, UpdatePlayer, CreateRound, UpdateRound, RecordVotes, UpdateQuest, CreateLadyInvestigation, CreateLancelotSwitch, CreatePlotCard, UpdatePlotCard, CreateAssassinationAttempt, CreateNote, UpdateNote } from './types';
 
-const BASE = '/api';
+export const BASE_PATH = import.meta.env.BASE_URL;
+const BASE = `${BASE_PATH}api`;
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

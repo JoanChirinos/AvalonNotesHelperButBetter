@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { FullGameState } from '../types';
+  import { BASE_PATH } from '../api';
   import GameSetup from './GameSetup.svelte';
   import GameBoard from './GameBoard.svelte';
   import GameSummary from './GameSummary.svelte';
@@ -24,7 +25,7 @@
 
   function connectWs() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/api/games/${gameId}/ws`;
+    const url = `${protocol}//${window.location.host}${BASE_PATH}api/games/${gameId}/ws`;
     const socket = new WebSocket(url);
 
     socket.onmessage = (event) => {
