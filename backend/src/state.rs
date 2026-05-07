@@ -30,8 +30,12 @@ impl AppState {
         drop(channels);
 
         let mut channels = self.channels.write().await;
-        let (tx, _) = broadcast::channel(64);
-        channels.insert(game_id.to_string(), tx.clone());
-        tx
+        channels
+            .entry(game_id.to_string())
+            .or_insert_with(|| {
+                let (tx, _) = broadcast::channel(64);
+                tx
+            })
+            .clone()
     }
 }

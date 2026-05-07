@@ -40,7 +40,7 @@
   let evilMsgCount = $state(0);
 
   // Result preview
-  let previewResult = $derived(() => {
+  let previewResult = $derived.by(() => {
     if (!majorityApproved) return null;
     const fails = failCount + evilMsgCount;
     const threshold = failsRequired(players.length, currentQuest.quest.quest_number);
@@ -82,7 +82,7 @@
         // Approve round
         await api.updateRound(game.id, round.id, { status: 'approved' });
         // Save card counts + result
-        const result = previewResult();
+        const result = previewResult;
         await api.updateQuest(game.id, currentQuest.quest.id, {
           result: result ?? undefined,
           success_count: successCount,
@@ -296,11 +296,11 @@
         </div>
 
         <!-- Result Preview -->
-        {#if previewResult()}
+        {#if previewResult}
           <div class="mt-2">
-            <span class="badge badge-lg" class:badge-success={previewResult() === 'success'} class:badge-error={previewResult() === 'fail'}>
-              Quest {previewResult() === 'success' ? 'PASSES' : 'FAILS'}
-              {#if previewResult() === 'success'}<Check size={14} class="inline" />{:else}<X size={14} class="inline" />{/if}
+            <span class="badge badge-lg" class:badge-success={previewResult === 'success'} class:badge-error={previewResult === 'fail'}>
+              Quest {previewResult === 'success' ? 'PASSES' : 'FAILS'}
+              {#if previewResult === 'success'}<Check size={14} class="inline" />{:else}<X size={14} class="inline" />{/if}
             </span>
           </div>
         {/if}

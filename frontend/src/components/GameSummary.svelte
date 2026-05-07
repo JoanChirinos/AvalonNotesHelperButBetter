@@ -33,12 +33,11 @@
   let assassinationNeeded = $derived(succeededQuests >= 3);
 
   // Derive game result
-  let gameResult = $derived(() => {
+  let gameResult = $derived.by(() => {
     if (failedQuests >= 3) return 'evil';
     if (!assassinationNeeded) return null;
-    // Check assassination results
     const phase2 = attempts.find(a => a.phase === 2);
-    if (!phase2) return null; // Not yet determined
+    if (!phase2) return null;
     return phase2.correct ? 'evil' : 'good';
   });
 
@@ -173,7 +172,7 @@
   }
 
   function playerWon(role: Role): boolean | null {
-    const result = gameResult();
+    const result = gameResult;
     if (!result) return null;
     const team = teamForRole(role);
 
@@ -325,11 +324,11 @@
     </div>
 
     <!-- Game Result -->
-    {#if gameResult()}
-      <div class="card shadow-sm" class:bg-success={gameResult() === 'good'} class:bg-error={gameResult() === 'evil'}>
+    {#if gameResult}
+      <div class="card shadow-sm" class:bg-success={gameResult === 'good'} class:bg-error={gameResult === 'evil'}>
         <div class="card-body items-center text-center py-4">
-          <h3 class="text-xl font-bold" class:text-success-content={gameResult() === 'good'} class:text-error-content={gameResult() === 'evil'}>
-            {gameResult() === 'good' ? 'Good Wins!' : 'Evil Wins!'}
+          <h3 class="text-xl font-bold" class:text-success-content={gameResult === 'good'} class:text-error-content={gameResult === 'evil'}>
+            {gameResult === 'good' ? 'Good Wins!' : 'Evil Wins!'}
           </h3>
         </div>
       </div>

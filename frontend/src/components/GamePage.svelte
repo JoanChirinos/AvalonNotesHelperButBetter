@@ -14,7 +14,6 @@
 
   let gameState = $state<FullGameState | null>(null);
   let error = $state('');
-  let ws = $state<WebSocket | null>(null);
 
   // Derived game phase
   let isSetup = $derived(
@@ -23,37 +22,50 @@
   let isFinished = $derived(gameState !== null && gameState.game.finished_at !== null);
   let isActive = $derived(gameState !== null && !isSetup && !isFinished);
 
-  function connectWs() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}${BASE_PATH}api/games/${gameId}/ws`;
-    const socket = new WebSocket(url);
-
-    socket.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'game_state') {
-          gameState = msg.data;
-        }
-      } catch (e) {
-        console.error('WS parse error:', e);
-      }
-    };
-
-    socket.onclose = () => {
-      // Reconnect after 1 second
-      setTimeout(connectWs, 1000);
-    };
-
-    socket.onerror = () => {
-      error = 'WebSocket connection error';
-    };
-
-    ws = socket;
-  }
-
   $effect(() => {
-    connectWs();
-    return () => ws?.close();
+    let destroyed = false;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+    let socket: WebSocket;
+
+    gameState = null;
+    error = '';
+
+    function connect() {
+      if (destroyed) return;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${protocol}//${window.location.host}${BASE_PATH}api/games/${gameId}/ws`;
+      socket = new WebSocket(url);
+
+      socket.onopen = () => { error = ''; };
+
+      socket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'game_state') {
+            gameState = msg.data;
+          }
+        } catch (e) {
+          console.error('WS parse error:', e);
+        }
+      };
+
+      socket.onclose = () => {
+        if (!destroyed) {
+          reconnectTimeout = setTimeout(connect, 1000);
+        }
+      };
+
+      socket.onerror = () => {
+        error = 'WebSocket connection error';
+      };
+    }
+
+    connect();
+    return () => {
+      destroyed = true;
+      clearTimeout(reconnectTimeout);
+      socket?.close();
+    };
   });
 </script>
 

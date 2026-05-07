@@ -17,15 +17,15 @@ pub async fn ws_handler(
 async fn handle_socket(socket: WebSocket, game_id: String, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
 
+    // Subscribe first to avoid missing broadcasts during initial load
+    let tx = state.get_channel(&game_id).await;
+    let mut rx = tx.subscribe();
+
     // Send initial full state
     if let Ok(game_state) = queries::load_full_game_state(&state.db, &game_id) {
         let msg = serde_json::json!({ "type": "game_state", "data": game_state });
         let _ = sender.send(Message::Text(msg.to_string().into())).await;
     }
-
-    // Subscribe to game updates
-    let tx = state.get_channel(&game_id).await;
-    let mut rx = tx.subscribe();
 
     // Spawn task to forward broadcasts to this client
     let mut send_task = tokio::spawn(async move {

@@ -19,13 +19,13 @@ fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-/// Broadcast full game state to all WebSocket clients
-async fn broadcast(state: &AppState, game_id: &str) {
-    if let Ok(game_state) = queries::load_full_game_state(&state.db, game_id) {
-        let msg = serde_json::json!({ "type": "game_state", "data": game_state });
-        let tx = state.get_channel(game_id).await;
-        let _ = tx.send(msg.to_string());
-    }
+/// Broadcast full game state to all WebSocket clients, returning the loaded state
+async fn broadcast(state: &AppState, game_id: &str) -> Result<FullGameState, (StatusCode, String)> {
+    let game_state = queries::load_full_game_state(&state.db, game_id).map_err(db_err)?;
+    let msg = serde_json::json!({ "type": "game_state", "data": game_state });
+    let tx = state.get_channel(game_id).await;
+    let _ = tx.send(msg.to_string());
+    Ok(game_state)
 }
 
 // ── Games ──
@@ -37,90 +37,85 @@ pub async fn create_game(
     let mut conn = state.db.get().expect("DB connection");
     let game_id = new_id();
 
-    diesel::insert_into(schema::games::table)
-        .values(&NewGame {
-            id: game_id.clone(),
-            current_quest: 1,
-        })
-        .execute(&mut conn)
-        .map_err(db_err)?;
-
-    for (i, name) in req.player_names.iter().enumerate() {
-        // Create known player
-        let kp_id = new_id();
-        diesel::insert_into(schema::known_players::table)
-            .values(&NewKnownPlayer {
-                id: kp_id.clone(),
-                name: name.clone(),
+    conn.transaction(|conn| {
+        diesel::insert_into(schema::games::table)
+            .values(&NewGame {
+                id: game_id.clone(),
+                current_quest: 1,
             })
-            .execute(&mut conn)
-            .map_err(db_err)?;
+            .execute(conn)?;
 
-        diesel::insert_into(schema::players::table)
-            .values(&NewPlayer {
-                id: new_id(),
-                game_id: game_id.clone(),
-                known_player_id: kp_id,
-                seat_order: (i + 1) as i32,
-            })
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
+        for (i, name) in req.player_names.iter().enumerate() {
+            let kp_id = new_id();
+            diesel::insert_into(schema::known_players::table)
+                .values(&NewKnownPlayer {
+                    id: kp_id.clone(),
+                    name: name.clone(),
+                })
+                .execute(conn)?;
 
-    for role in &req.roles {
-        diesel::insert_into(schema::game_roles::table)
-            .values(&NewGameRole {
-                id: new_id(),
-                game_id: game_id.clone(),
-                role: *role,
-            })
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
+            diesel::insert_into(schema::players::table)
+                .values(&NewPlayer {
+                    id: new_id(),
+                    game_id: game_id.clone(),
+                    known_player_id: kp_id,
+                    seat_order: (i + 1) as i32,
+                })
+                .execute(conn)?;
+        }
 
-    for module in &req.modules {
-        diesel::insert_into(schema::game_modules::table)
-            .values(&NewGameModule {
-                id: new_id(),
-                game_id: game_id.clone(),
-                module: *module,
-            })
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
+        for role in &req.roles {
+            diesel::insert_into(schema::game_roles::table)
+                .values(&NewGameRole {
+                    id: new_id(),
+                    game_id: game_id.clone(),
+                    role: *role,
+                })
+                .execute(conn)?;
+        }
 
-    for q in 1..=5 {
-        diesel::insert_into(schema::quests::table)
-            .values(&NewQuest {
-                id: new_id(),
-                game_id: game_id.clone(),
-                quest_number: q,
-            })
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
+        for module in &req.modules {
+            diesel::insert_into(schema::game_modules::table)
+                .values(&NewGameModule {
+                    id: new_id(),
+                    game_id: game_id.clone(),
+                    module: *module,
+                })
+                .execute(conn)?;
+        }
 
-    if req.modules.contains(&Module::LadyOfTheLake) {
-        if let Some(idx) = req.lady_holder_player_index {
-            let players = schema::players::table
-                .filter(schema::players::game_id.eq(&game_id))
-                .order(schema::players::seat_order.asc())
-                .load::<Player>(&mut conn)
-                .map_err(db_err)?;
+        for q in 1..=5 {
+            diesel::insert_into(schema::quests::table)
+                .values(&NewQuest {
+                    id: new_id(),
+                    game_id: game_id.clone(),
+                    quest_number: q,
+                })
+                .execute(conn)?;
+        }
 
-            if let Some(player) = players.get(idx) {
-                diesel::insert_into(schema::lady_holders::table)
-                    .values(&NewLadyHolder {
-                        id: new_id(),
-                        game_id: game_id.clone(),
-                        player_id: player.id.clone(),
-                        holder_order: 0,
-                    })
-                    .execute(&mut conn)
-                    .map_err(db_err)?;
+        if req.modules.contains(&Module::LadyOfTheLake) {
+            if let Some(idx) = req.lady_holder_player_index {
+                let players = schema::players::table
+                    .filter(schema::players::game_id.eq(&game_id))
+                    .order(schema::players::seat_order.asc())
+                    .load::<Player>(conn)?;
+
+                if let Some(player) = players.get(idx) {
+                    diesel::insert_into(schema::lady_holders::table)
+                        .values(&NewLadyHolder {
+                            id: new_id(),
+                            game_id: game_id.clone(),
+                            player_id: player.id.clone(),
+                            holder_order: 0,
+                        })
+                        .execute(conn)?;
+                }
             }
         }
-    }
+
+        Ok(())
+    }).map_err(db_err)?;
 
     let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
     Ok((StatusCode::CREATED, Json(game_state)))
@@ -246,8 +241,7 @@ pub async fn update_game(
             .map_err(db_err)?;
     }
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -305,8 +299,7 @@ pub async fn add_player(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -317,24 +310,21 @@ pub async fn reorder_players(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = state.db.get().expect("DB connection");
 
-    // First pass: set all to temporary high values to avoid unique conflicts
-    for (i, pid) in req.player_ids.iter().enumerate() {
-        diesel::update(schema::players::table.find(pid))
-            .set(schema::players::seat_order.eq((i as i32 + 1) + 1000))
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
+    conn.transaction(|conn| {
+        for (i, pid) in req.player_ids.iter().enumerate() {
+            diesel::update(schema::players::table.find(pid))
+                .set(schema::players::seat_order.eq((i as i32 + 1) + 1000))
+                .execute(conn)?;
+        }
+        for (i, pid) in req.player_ids.iter().enumerate() {
+            diesel::update(schema::players::table.find(pid))
+                .set(schema::players::seat_order.eq(i as i32 + 1))
+                .execute(conn)?;
+        }
+        Ok(())
+    }).map_err(db_err)?;
 
-    // Second pass: set final values
-    for (i, pid) in req.player_ids.iter().enumerate() {
-        diesel::update(schema::players::table.find(pid))
-            .set(schema::players::seat_order.eq(i as i32 + 1))
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
-
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -363,8 +353,7 @@ pub async fn update_player(
             .map_err(db_err)?;
     }
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -378,7 +367,7 @@ pub async fn delete_player(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
+    let _ = broadcast(&state, &game_id).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -400,8 +389,7 @@ pub async fn add_role(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -415,8 +403,7 @@ pub async fn delete_role(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -436,8 +423,7 @@ pub async fn add_module(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -451,8 +437,7 @@ pub async fn delete_module(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -502,8 +487,7 @@ pub async fn update_quest(
             .map_err(db_err)?;
     }
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -516,37 +500,37 @@ pub async fn create_round(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = state.db.get().expect("DB connection");
 
-    let existing: i64 = schema::rounds::table
-        .filter(schema::rounds::quest_id.eq(&quest_id))
-        .count()
-        .get_result(&mut conn)
-        .map_err(db_err)?;
+    conn.transaction(|conn| {
+        let existing: i64 = schema::rounds::table
+            .filter(schema::rounds::quest_id.eq(&quest_id))
+            .count()
+            .get_result(conn)?;
 
-    let round_id = new_id();
-    diesel::insert_into(schema::rounds::table)
-        .values(&NewRound {
-            id: round_id.clone(),
-            quest_id,
-            round_number: (existing + 1) as i32,
-            leader_player_id: req.leader_player_id,
-            status: RoundStatus::Proposed,
-        })
-        .execute(&mut conn)
-        .map_err(db_err)?;
-
-    for pid in &req.team_player_ids {
-        diesel::insert_into(schema::round_teams::table)
-            .values(&NewRoundTeam {
-                id: new_id(),
-                round_id: round_id.clone(),
-                player_id: pid.clone(),
+        let round_id = new_id();
+        diesel::insert_into(schema::rounds::table)
+            .values(&NewRound {
+                id: round_id.clone(),
+                quest_id,
+                round_number: (existing + 1) as i32,
+                leader_player_id: req.leader_player_id,
+                status: RoundStatus::Proposed,
             })
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
+            .execute(conn)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+        for pid in &req.team_player_ids {
+            diesel::insert_into(schema::round_teams::table)
+                .values(&NewRoundTeam {
+                    id: new_id(),
+                    round_id: round_id.clone(),
+                    player_id: pid.clone(),
+                })
+                .execute(conn)?;
+        }
+
+        Ok(())
+    }).map_err(db_err)?;
+
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -557,39 +541,37 @@ pub async fn update_round(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = state.db.get().expect("DB connection");
 
-    if let Some(ref leader) = req.leader_player_id {
-        diesel::update(schema::rounds::table.find(&round_id))
-            .set(schema::rounds::leader_player_id.eq(leader))
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
-    if let Some(status) = req.status {
-        diesel::update(schema::rounds::table.find(&round_id))
-            .set(schema::rounds::status.eq(status))
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
-    if let Some(ref team_ids) = req.team_player_ids {
-        diesel::delete(
-            schema::round_teams::table.filter(schema::round_teams::round_id.eq(&round_id)),
-        )
-        .execute(&mut conn)
-        .map_err(db_err)?;
-
-        for pid in team_ids {
-            diesel::insert_into(schema::round_teams::table)
-                .values(&NewRoundTeam {
-                    id: new_id(),
-                    round_id: round_id.clone(),
-                    player_id: pid.clone(),
-                })
-                .execute(&mut conn)
-                .map_err(db_err)?;
+    conn.transaction(|conn| {
+        if let Some(ref leader) = req.leader_player_id {
+            diesel::update(schema::rounds::table.find(&round_id))
+                .set(schema::rounds::leader_player_id.eq(leader))
+                .execute(conn)?;
         }
-    }
+        if let Some(status) = req.status {
+            diesel::update(schema::rounds::table.find(&round_id))
+                .set(schema::rounds::status.eq(status))
+                .execute(conn)?;
+        }
+        if let Some(ref team_ids) = req.team_player_ids {
+            diesel::delete(
+                schema::round_teams::table.filter(schema::round_teams::round_id.eq(&round_id)),
+            )
+            .execute(conn)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+            for pid in team_ids {
+                diesel::insert_into(schema::round_teams::table)
+                    .values(&NewRoundTeam {
+                        id: new_id(),
+                        round_id: round_id.clone(),
+                        player_id: pid.clone(),
+                    })
+                    .execute(conn)?;
+            }
+        }
+        Ok(())
+    }).map_err(db_err)?;
+
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -602,26 +584,27 @@ pub async fn record_votes(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = state.db.get().expect("DB connection");
 
-    diesel::delete(
-        schema::round_votes::table.filter(schema::round_votes::round_id.eq(&round_id)),
-    )
-    .execute(&mut conn)
-    .map_err(db_err)?;
+    conn.transaction(|conn| {
+        diesel::delete(
+            schema::round_votes::table.filter(schema::round_votes::round_id.eq(&round_id)),
+        )
+        .execute(conn)?;
 
-    for v in &req.votes {
-        diesel::insert_into(schema::round_votes::table)
-            .values(&NewRoundVote {
-                id: new_id(),
-                round_id: round_id.clone(),
-                player_id: v.player_id.clone(),
-                vote: v.vote,
-            })
-            .execute(&mut conn)
-            .map_err(db_err)?;
-    }
+        for v in &req.votes {
+            diesel::insert_into(schema::round_votes::table)
+                .values(&NewRoundVote {
+                    id: new_id(),
+                    round_id: round_id.clone(),
+                    player_id: v.player_id.clone(),
+                    vote: v.vote,
+                })
+                .execute(conn)?;
+        }
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+        Ok(())
+    }).map_err(db_err)?;
+
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -634,36 +617,36 @@ pub async fn create_lady_investigation(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = state.db.get().expect("DB connection");
 
-    diesel::insert_into(schema::lady_investigations::table)
-        .values(&NewLadyInvestigation {
-            id: new_id(),
-            game_id: game_id.clone(),
-            quest_id: req.quest_id,
-            investigator_player_id: req.investigator_player_id,
-            target_player_id: req.target_player_id.clone(),
-            claimed_affiliation: req.claimed_affiliation,
-        })
-        .execute(&mut conn)
-        .map_err(db_err)?;
+    conn.transaction(|conn| {
+        diesel::insert_into(schema::lady_investigations::table)
+            .values(&NewLadyInvestigation {
+                id: new_id(),
+                game_id: game_id.clone(),
+                quest_id: req.quest_id,
+                investigator_player_id: req.investigator_player_id,
+                target_player_id: req.target_player_id.clone(),
+                claimed_affiliation: req.claimed_affiliation,
+            })
+            .execute(conn)?;
 
-    let next_order: i64 = schema::lady_holders::table
-        .filter(schema::lady_holders::game_id.eq(&game_id))
-        .count()
-        .get_result(&mut conn)
-        .map_err(db_err)?;
+        let next_order: i64 = schema::lady_holders::table
+            .filter(schema::lady_holders::game_id.eq(&game_id))
+            .count()
+            .get_result(conn)?;
 
-    diesel::insert_into(schema::lady_holders::table)
-        .values(&NewLadyHolder {
-            id: new_id(),
-            game_id: game_id.clone(),
-            player_id: req.target_player_id,
-            holder_order: next_order as i32,
-        })
-        .execute(&mut conn)
-        .map_err(db_err)?;
+        diesel::insert_into(schema::lady_holders::table)
+            .values(&NewLadyHolder {
+                id: new_id(),
+                game_id: game_id.clone(),
+                player_id: req.target_player_id,
+                holder_order: next_order as i32,
+            })
+            .execute(conn)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+        Ok(())
+    }).map_err(db_err)?;
+
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -686,8 +669,7 @@ pub async fn create_lancelot_switch(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -713,8 +695,7 @@ pub async fn create_plot_card(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -738,8 +719,7 @@ pub async fn update_plot_card(
             .map_err(db_err)?;
     }
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -765,8 +745,7 @@ pub async fn create_assassination_attempt(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -790,8 +769,7 @@ pub async fn create_note(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))
 }
 
@@ -809,8 +787,7 @@ pub async fn update_note(
             .map_err(db_err)?;
     }
 
-    broadcast(&state, &game_id).await;
-    let game_state = queries::load_full_game_state(&state.db, &game_id).map_err(db_err)?;
+    let game_state = broadcast(&state, &game_id).await?;
     Ok(Json(game_state))
 }
 
@@ -824,6 +801,6 @@ pub async fn delete_note(
         .execute(&mut conn)
         .map_err(db_err)?;
 
-    broadcast(&state, &game_id).await;
+    let _ = broadcast(&state, &game_id).await;
     Ok(StatusCode::NO_CONTENT)
 }
