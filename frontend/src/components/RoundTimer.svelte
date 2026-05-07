@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { Play, Pause, RotateCcw, Plus, Minus } from 'lucide-svelte';
 
   let totalSeconds = $state(120);
   let remaining = $state(120);
   let running = $state(false);
   let interval: ReturnType<typeof setInterval> | null = null;
+
+  onDestroy(() => { if (interval) clearInterval(interval); });
 
   let minutes = $derived(Math.floor(remaining / 60));
   let seconds = $derived(remaining % 60);

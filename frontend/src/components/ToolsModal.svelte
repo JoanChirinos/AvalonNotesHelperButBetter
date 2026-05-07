@@ -95,8 +95,11 @@
       const size = teamSize;
       const kingId = round.leader_player_id;
       const others = players.filter(p => p.id !== kingId);
-      const shuffled = others.sort(() => Math.random() - 0.5);
-      const team = [kingId, ...shuffled.slice(0, size - 1).map(p => p.id)];
+      for (let i = others.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [others[i], others[j]] = [others[j], others[i]];
+      }
+      const team = [kingId, ...others.slice(0, size - 1).map(p => p.id)];
       await api.updateRound(game.id, round.id, { team_player_ids: team });
       open = false;
     } catch (e) { error = String(e); }

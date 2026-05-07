@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { api } from '../api';
   import type { FullGameState, ClaimedAffiliation } from '../types';
   import { playerNameById } from '../derived';
@@ -70,6 +71,8 @@
   let timerRemaining = $state(120);
   let timerRunning = $state(false);
   let timerInterval: ReturnType<typeof setInterval> | null = null;
+
+  onDestroy(() => { if (timerInterval) clearInterval(timerInterval); });
 
   function startTimer() {
     if (timerRemaining <= 0) return;

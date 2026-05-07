@@ -54,7 +54,10 @@
     gameState.quests.filter(q => q.rounds.length > 0)
   );
 
-  // Assassination state
+  // Assassination state — derived from server data
+  let phase1Attempt = $derived(attempts.find(a => a.phase === 1));
+  let phase2Attempt = $derived(attempts.find(a => a.phase === 2));
+
   let phase1Sniper = $state('');
   let phase1Target = $state('');
   let phase1Correct = $state(false);
@@ -62,37 +65,32 @@
   let phase2Sniper = $state('');
   let phase2Type = $state<SnipeType>('merlin');
   let phase2Target1 = $state('');
-  let phase2Target2 = $state(''); // for messengers
+  let phase2Target2 = $state('');
   let phase2Correct = $state(false);
 
-  // Role assignment: role_id -> player_id
-  let roleAssignments = $state<Map<string, string>>(new Map());
-  let initialized = $state(false);
-
-  // Init from existing data (once)
+  // Sync form state from server when attempts change
   $effect(() => {
-    if (initialized) return;
-    initialized = true;
-
-    // Load existing assassination attempts
-    const a1 = attempts.find(a => a.phase === 1);
-    if (a1) {
-      phase1Sniper = a1.sniper_player_id;
-      const targets = JSON.parse(a1.target_player_ids) as string[];
+    if (phase1Attempt) {
+      phase1Sniper = phase1Attempt.sniper_player_id;
+      const targets = JSON.parse(phase1Attempt.target_player_ids) as string[];
       phase1Target = targets[0] ?? '';
-      phase1Correct = a1.correct === 1;
+      phase1Correct = phase1Attempt.correct === 1;
     }
-    const a2 = attempts.find(a => a.phase === 2);
-    if (a2) {
-      phase2Sniper = a2.sniper_player_id;
-      phase2Type = a2.snipe_type as SnipeType;
-      const targets = JSON.parse(a2.target_player_ids) as string[];
+  });
+
+  $effect(() => {
+    if (phase2Attempt) {
+      phase2Sniper = phase2Attempt.sniper_player_id;
+      phase2Type = phase2Attempt.snipe_type as SnipeType;
+      const targets = JSON.parse(phase2Attempt.target_player_ids) as string[];
       phase2Target1 = targets[0] ?? '';
       phase2Target2 = targets[1] ?? '';
-      phase2Correct = a2.correct === 1;
+      phase2Correct = phase2Attempt.correct === 1;
     }
+  });
 
-    // Load existing role assignments
+  // Role assignment: derived from player data
+  let roleAssignments = $derived.by(() => {
     const map = new Map<string, string>();
     for (const p of players) {
       if (p.role) {
@@ -100,7 +98,7 @@
         if (roleEntry) map.set(roleEntry.id, p.id);
       }
     }
-    roleAssignments = map;
+    return map;
   });
 
   async function saveAssassination(phase: number) {
@@ -131,19 +129,14 @@
   }
 
   async function assignRole(roleId: string, playerId: string) {
-    // Unassign previous player for this role
     const prevPlayerId = roleAssignments.get(roleId);
-    if (prevPlayerId) {
-      await api.updatePlayer(gameState.game.id, prevPlayerId, { clear_role: true });
-    }
-
-    roleAssignments.set(roleId, playerId);
-    roleAssignments = new Map(roleAssignments);
-
     const roleEntry = roles.find(r => r.id === roleId);
     if (!roleEntry) return;
 
     try {
+      if (prevPlayerId) {
+        await api.updatePlayer(gameState.game.id, prevPlayerId, { clear_role: true });
+      }
       await api.updatePlayer(gameState.game.id, playerId, { role: roleEntry.role });
     } catch (e) {
       console.error(e);
@@ -159,8 +152,6 @@
         console.error(e);
       }
     }
-    roleAssignments.delete(roleId);
-    roleAssignments = new Map(roleAssignments);
   }
 
   // Players already assigned to a role
@@ -229,7 +220,7 @@
                   <span>Correct?</span>
                   <input type="checkbox" class="checkbox checkbox-sm" bind:checked={phase1Correct} />
                 </label>
-                <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(1)}>Save</button>
+                <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(1)} disabled={!!phase1Attempt}>{phase1Attempt ? 'Saved' : 'Save'}</button>
               </div>
             </div>
           {/if}
@@ -276,7 +267,7 @@
                 <span>Correct?</span>
                 <input type="checkbox" class="checkbox checkbox-sm" bind:checked={phase2Correct} />
               </label>
-              <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(2)}>Save</button>
+              <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(2)} disabled={!!phase2Attempt}>{phase2Attempt ? 'Saved' : 'Save'}</button>
             </div>
           </div>
         </div>

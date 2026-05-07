@@ -39,6 +39,15 @@
   let goodMsgCount = $state(0);
   let evilMsgCount = $state(0);
 
+  // Reset card counts when the round changes
+  let lastRoundId = $state('');
+  $effect(() => {
+    if (round.id !== lastRoundId) {
+      lastRoundId = round.id;
+      successCount = 0; failCount = 0; magicCount = 0; goodMsgCount = 0; evilMsgCount = 0;
+    }
+  });
+
   // Result preview
   let previewResult = $derived.by(() => {
     if (!majorityApproved) return null;

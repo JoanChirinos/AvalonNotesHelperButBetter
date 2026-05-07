@@ -39,9 +39,11 @@
       <button class="btn btn-ghost text-xl" onclick={() => navigate('#/')}><Swords size={20} /> Avalon Notes Helper</button>
     </div>
     {#if gameId}
-      <div class="flex-1 flex justify-center">
-        <RoundTimer />
-      </div>
+      {#key gameId}
+        <div class="flex-1 flex justify-center">
+          <RoundTimer />
+        </div>
+      {/key}
     {/if}
     <div class="flex-none pr-2">
       <label class="swap swap-rotate">
