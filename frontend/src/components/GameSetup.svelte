@@ -155,7 +155,7 @@
   }
 
   async function cancelGame() {
-    if (!confirm('Delete this game? It can be recovered later if needed.')) return;
+    if (!confirm('Are you sure? This action is irreversible!')) return;
     try {
       await api.deleteGame(gameId);
       onNavigate('#/');
