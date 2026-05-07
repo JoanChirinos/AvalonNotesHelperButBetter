@@ -2,6 +2,7 @@
   import { api } from '../api';
   import type { GameSummary, Role } from '../types';
   import { teamForRole, ROLE_DISPLAY_NAMES } from '../constants';
+  import { Trash2 } from 'lucide-svelte';
 
   interface Props {
     onNavigate: (path: string) => void;
@@ -59,6 +60,17 @@
     return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
   }
 
+  async function deleteGame(e: Event, gameId: string) {
+    e.stopPropagation();
+    if (!confirm('Are you sure? This action is irreversible!')) return;
+    try {
+      await api.deleteGame(gameId);
+      await loadGames();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
   $effect(() => {
     loadGames();
 
@@ -90,16 +102,24 @@
     <h3 class="text-lg font-semibold mb-3 text-base-content/70">Active</h3>
     <div class="grid gap-3 mb-8">
       {#each activeGames as summary}
-        <button
-          class="card bg-base-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow text-left w-full"
+        <div
+          class="card bg-base-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow text-left w-full group"
           onclick={() => onNavigate(`#/game/${summary.game.id}`)}
+          role="button"
+          tabindex="0"
+          onkeydown={(e) => { if (e.key === 'Enter') onNavigate(`#/game/${summary.game.id}`); }}
         >
           <div class="card-body p-4">
             <div class="flex items-center justify-between">
               <span class="text-sm text-base-content/60">{formatDate(summary.game.created_at)}</span>
-              {#if summary.player_names.length > 0}
-                <span class="badge badge-sm badge-outline">{summary.player_names.length} players</span>
-              {/if}
+              <div class="flex items-center gap-2">
+                {#if summary.player_names.length > 0}
+                  <span class="badge badge-sm badge-outline">{summary.player_names.length} players</span>
+                {/if}
+                <button class="btn btn-ghost btn-xs text-error opacity-0 group-hover:opacity-100 transition-opacity" onclick={(e) => deleteGame(e, summary.game.id)}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
             {#if summary.player_names.length > 0}
               <div class="text-sm mt-1">{summary.player_names.join(', ')}</div>
@@ -108,7 +128,7 @@
               {summary.has_started ? `In Progress — Quest ${summary.game.current_quest}` : 'Setting Up'}
             </div>
           </div>
-        </button>
+        </div>
       {/each}
     </div>
   {/if}
@@ -118,14 +138,22 @@
     <h3 class="text-lg font-semibold mb-3 text-base-content/70">Completed</h3>
     <div class="grid gap-3 mb-4">
       {#each pagedFinished as summary}
-        <button
-          class="card bg-base-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow text-left w-full"
+        <div
+          class="card bg-base-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow text-left w-full group"
           onclick={() => onNavigate(`#/game/${summary.game.id}`)}
+          role="button"
+          tabindex="0"
+          onkeydown={(e) => { if (e.key === 'Enter') onNavigate(`#/game/${summary.game.id}`); }}
         >
           <div class="card-body p-4">
             <div class="flex items-center justify-between">
               <span class="text-sm text-base-content/60">{formatDate(summary.game.finished_at!)}</span>
-              <span class="badge badge-sm badge-outline">{summary.player_names.length} players</span>
+              <div class="flex items-center gap-2">
+                <span class="badge badge-sm badge-outline">{summary.player_names.length} players</span>
+                <button class="btn btn-ghost btn-xs text-error opacity-0 group-hover:opacity-100 transition-opacity" onclick={(e) => deleteGame(e, summary.game.id)}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
             {#if summary.player_names.length > 0}
               {@const paired = summary.player_names.map((name, i) => ({ name, role: summary.player_roles[i] })).sort((a, b) => {
@@ -156,7 +184,7 @@
               </div>
             {/if}
           </div>
-        </button>
+        </div>
       {/each}
     </div>
 
