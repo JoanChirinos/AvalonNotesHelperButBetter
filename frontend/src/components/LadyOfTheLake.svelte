@@ -148,18 +148,16 @@
 <!-- Lady chain display + reopen button -->
 {#if shouldShow && !open}
   <div class="flex items-center gap-1 flex-wrap">
-    {#if holders.length > 0 || initialLadyPlayerId}
-      {#if holders.length > 0}
-        {#each holders as holder, i}
-          <span class="text-xs font-medium">{playerNameById(gameState, holder.player_id)}</span>
-          {#if i < investigations.length}
-            {@const inv = investigations[i]}
-            <Eye size={14} class={inv.claimed_affiliation === 'good' ? 'text-success' : 'text-error'} />
-          {/if}
-        {/each}
-      {:else}
-        <span class="text-xs font-medium">{playerNameById(gameState, initialLadyPlayerId!)}</span>
-      {/if}
+    {#if investigations.length > 0}
+      {#each investigations as inv, i}
+        {#if i === 0}
+          <span class="text-xs font-medium">{playerNameById(gameState, inv.investigator_player_id)}</span>
+        {/if}
+        <Eye size={14} class={inv.claimed_affiliation === 'good' ? 'text-success' : 'text-error'} />
+        <span class="text-xs font-medium">{playerNameById(gameState, inv.target_player_id)}</span>
+      {/each}
+    {:else if initialLadyPlayerId}
+      <span class="text-xs font-medium">{playerNameById(gameState, initialLadyPlayerId)}</span>
     {/if}
     <button class="btn btn-xs btn-ghost" onclick={() => open = true}>
       <Eye size={14} />
