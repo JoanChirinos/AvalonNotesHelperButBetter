@@ -85,7 +85,11 @@
     } catch (e) { error = String(e); }
   }
 
+  let submitting = $state(false);
+
   async function submit() {
+    if (submitting) return;
+    submitting = true;
     try {
       if (majorityApproved) {
         // Approve round
@@ -159,7 +163,7 @@
       }
       // Reset card counts
       successCount = 0; failCount = 0; magicCount = 0; goodMsgCount = 0; evilMsgCount = 0;
-    } catch (e) { error = String(e); }
+    } catch (e) { error = String(e); } finally { submitting = false; }
   }
 </script>
 
@@ -318,7 +322,7 @@
 
     <!-- Submit -->
     <div class="mt-4 flex justify-end">
-      <button class="btn btn-primary" onclick={submit}>
+      <button class="btn btn-primary" onclick={submit} disabled={submitting}>
         {#if majorityApproved}
           <Check size={16} class="inline" /> Complete Quest
         {:else}
