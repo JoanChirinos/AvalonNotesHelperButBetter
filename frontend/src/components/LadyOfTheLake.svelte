@@ -59,10 +59,24 @@
   let targetId = $state('');
   let claimed = $state<ClaimedAffiliation>('good');
 
-  // Auto-fill investigator from current holder
+  // Derive initial Lady holder: player to the left of the first king
+  let initialLadyPlayerId = $derived.by(() => {
+    if (holders.length > 0) return null;
+    const firstQuest = gameState.quests[0];
+    if (!firstQuest || firstQuest.rounds.length === 0) return null;
+    const firstLeaderId = firstQuest.rounds[0].round.leader_player_id;
+    const leaderIdx = players.findIndex(p => p.id === firstLeaderId);
+    if (leaderIdx === -1) return null;
+    const ladyIdx = (leaderIdx - 1 + players.length) % players.length;
+    return players[ladyIdx]?.id ?? null;
+  });
+
+  // Auto-fill investigator from current holder (or initial derivation)
   $effect(() => {
     if (currentHolder) {
       investigatorId = currentHolder.player_id;
+    } else if (initialLadyPlayerId) {
+      investigatorId = initialLadyPlayerId;
     }
   });
 
@@ -131,11 +145,26 @@
   }
 </script>
 
-<!-- Reopen button (shown when Lady is available) -->
+<!-- Lady chain display + reopen button -->
 {#if shouldShow && !open}
-  <button class="btn btn-sm btn-ghost gap-1" onclick={() => open = true}>
-    <Eye size={16} /> Lady
-  </button>
+  <div class="flex items-center gap-1 flex-wrap">
+    {#if holders.length > 0 || initialLadyPlayerId}
+      {#if holders.length > 0}
+        {#each holders as holder, i}
+          <span class="text-xs font-medium">{playerNameById(gameState, holder.player_id)}</span>
+          {#if i < investigations.length}
+            {@const inv = investigations[i]}
+            <Eye size={14} class={inv.claimed_affiliation === 'good' ? 'text-success' : 'text-error'} />
+          {/if}
+        {/each}
+      {:else}
+        <span class="text-xs font-medium">{playerNameById(gameState, initialLadyPlayerId!)}</span>
+      {/if}
+    {/if}
+    <button class="btn btn-xs btn-ghost" onclick={() => open = true}>
+      <Eye size={14} />
+    </button>
+  </div>
 {/if}
 
 {#if open}
