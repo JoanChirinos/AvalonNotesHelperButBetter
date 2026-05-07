@@ -34,9 +34,14 @@
     const ki = kingIndex();
     const step = alternating ? 2 : 1;
     const result: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const offset = (i + 1) * step * direction;
+    const seen = new Set<number>();
+    let i = 0;
+    while (result.length < count && seen.size < players.length - 1) {
+      i++;
+      const offset = i * step * direction;
       const idx = ((ki + offset) % players.length + players.length) % players.length;
+      if (idx === ki || seen.has(idx)) continue;
+      seen.add(idx);
       result.push(players[idx].id);
     }
     return result;

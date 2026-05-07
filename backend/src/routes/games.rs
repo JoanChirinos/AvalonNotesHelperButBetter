@@ -191,7 +191,22 @@ pub async fn list_games(
                     match snipe {
                         Some(a) if a.correct == 1 => Some("evil".to_string()),
                         Some(_) => Some("good".to_string()),
-                        None => Some("good".to_string()), // no assassination roles
+                        None => {
+                            let has_target: bool = schema::game_roles::table
+                                .filter(schema::game_roles::game_id.eq(&game_id_ref))
+                                .filter(
+                                    schema::game_roles::role.eq("merlin")
+                                        .or(schema::game_roles::role.eq("senior_messenger"))
+                                )
+                                .count()
+                                .get_result::<i64>(&mut conn)
+                                .unwrap_or(0) > 0;
+                            if has_target {
+                                None
+                            } else {
+                                Some("good".to_string())
+                            }
+                        }
                     }
                 } else {
                     None

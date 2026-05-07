@@ -14,7 +14,7 @@ export function teamForRole(role: Role): Team {
 }
 
 export function deriveQuestResult(quest: Quest, playerCount: number): 'success' | 'fail' | null {
-  if (quest.success_count === null && quest.fail_count === null) return null;
+  if (quest.success_count === null && quest.fail_count === null) return quest.result ?? null;
 
   const fails = (quest.fail_count ?? 0) + (quest.evil_message_count ?? 0);
   const threshold = failsRequired(playerCount, quest.quest_number);
