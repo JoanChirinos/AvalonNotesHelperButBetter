@@ -64,22 +64,12 @@
   async function windowMiddle() {
     const king = players[kingIndex()].id;
     const needed = teamSize - 1;
-    const backCount = Math.floor(needed / 2);
-    const forwardCount = needed - backCount;
+    let bc = Math.floor(needed / 2);
+    let fc = needed - bc;
 
-    // For even splits, randomly lean
-    let bc = backCount;
-    let fc = forwardCount;
-    if (needed % 2 === 0 && needed > 0) {
-      if (Math.random() < 0.5) {
-        bc = needed / 2;
-        fc = needed / 2;
-      } else {
-        bc = needed / 2 - 1;
-        fc = needed / 2 + 1;
-      }
-      // Randomly swap direction of lean
-      if (Math.random() < 0.5) [bc, fc] = [fc, bc];
+    // Odd splits must lean one direction — randomize which
+    if (needed % 2 !== 0 && Math.random() < 0.5) {
+      [bc, fc] = [fc, bc];
     }
 
     const back = pickInDirection(-1, bc);

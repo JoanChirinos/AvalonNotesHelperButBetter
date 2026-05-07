@@ -5,6 +5,7 @@
   import QuestTrack from './QuestTrack.svelte';
   import QuestCard from './QuestCard.svelte';
   import CurrentRound from './CurrentRound.svelte';
+  import LadyOfTheLake from './LadyOfTheLake.svelte';
   import { Flag } from 'lucide-svelte';
 
   interface Props {
@@ -77,7 +78,8 @@
     </div>
   {:else}
     <!-- Current Round -->
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-4xl mx-auto space-y-2">
+      <LadyOfTheLake {gameState} />
       <CurrentRound {gameState} />
     </div>
   {/if}
