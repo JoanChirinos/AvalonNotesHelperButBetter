@@ -8,10 +8,11 @@
     gameState: FullGameState;
     roundState: RoundState;
     questNumber: number;
-    showResult?: boolean; // show card counts for approved rounds
+    showResult?: boolean;
+    onEdit?: () => void;
   }
 
-  let { gameState, roundState, questNumber, showResult = false }: Props = $props();
+  let { gameState, roundState, questNumber, showResult = false, onEdit }: Props = $props();
 
   let round = $derived(roundState.round);
   let players = $derived(gameState.players);
@@ -39,6 +40,11 @@
   class:border-error={isRejected}
   class:bg-base-100={!isRejected}
   class:bg-base-200={isRejected}
+  class:cursor-pointer={!!onEdit}
+  class:hover:ring-2={!!onEdit}
+  class:hover:ring-info={!!onEdit}
+  onclick={onEdit}
+  role={onEdit ? 'button' : undefined}
 >
   <div class="text-xs text-base-content/50 mb-1">
     R{round.round_number}

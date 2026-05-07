@@ -2,13 +2,16 @@
   import type { FullGameState, QuestState } from '../types';
   import { deriveQuestResult } from '../derived';
   import RoundCard from './RoundCard.svelte';
+  import RoundEditor from './RoundEditor.svelte';
 
   interface Props {
     gameState: FullGameState;
     questState: QuestState;
+    editingRoundId?: string | null;
+    onEditRound?: (roundId: string | null) => void;
   }
 
-  let { gameState, questState }: Props = $props();
+  let { gameState, questState, editingRoundId = null, onEditRound }: Props = $props();
 
   let quest = $derived(questState.quest);
   let rounds = $derived(questState.rounds);
@@ -39,12 +42,23 @@
     </div>
     <div class="p-2 space-y-2">
       {#each rounds as roundState}
-        <RoundCard
-          {gameState}
-          {roundState}
-          questNumber={quest.quest_number}
-          showResult={roundState.round.status === 'approved'}
-        />
+        {#if editingRoundId === roundState.round.id}
+          <RoundEditor
+            {gameState}
+            {roundState}
+            questNumber={quest.quest_number}
+            questId={quest.id}
+            onCancel={() => onEditRound?.(null)}
+          />
+        {:else}
+          <RoundCard
+            {gameState}
+            {roundState}
+            questNumber={quest.quest_number}
+            showResult={roundState.round.status === 'approved'}
+            onEdit={onEditRound ? () => onEditRound(roundState.round.id) : undefined}
+          />
+        {/if}
       {/each}
     </div>
   </div>

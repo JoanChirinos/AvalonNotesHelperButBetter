@@ -36,6 +36,8 @@
       .filter(q => q.rounds.length > 0)
   );
 
+  let editingRoundId = $state<string | null>(null);
+
   async function endGame() {
     try {
       await api.updateGame(gameState.game.id, {
@@ -54,7 +56,7 @@
   {#if historyQuests.length > 0}
     <div class="flex flex-wrap justify-center gap-3 px-4">
       {#each historyQuests as questState}
-        <QuestCard {gameState} {questState} />
+        <QuestCard {gameState} {questState} {editingRoundId} onEditRound={(id) => editingRoundId = id} />
       {/each}
     </div>
   {/if}
