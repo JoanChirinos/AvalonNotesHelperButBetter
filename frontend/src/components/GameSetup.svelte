@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { api } from '../api';
   import type { FullGameState, KnownPlayer, Role, Module } from '../types';
   import { GOOD_ROLES, EVIL_ROLES, ROLE_DISPLAY_NAMES, ROLE_BUNDLES } from '../constants';
@@ -156,6 +157,8 @@
 
   let playerListEl: HTMLDivElement;
   let sortableInstance: any = null;
+
+  onDestroy(() => { sortableInstance?.destroy(); });
 
   async function reorderPlayers(oldIndex: number, newIndex: number) {
     if (oldIndex === newIndex) return;

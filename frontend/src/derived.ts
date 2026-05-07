@@ -1,17 +1,7 @@
-import type { Quest, QuestState, FullGameState, Role, RoundState } from './types';
-import { questSize, failsRequired } from './constants';
+import type { Quest, QuestState, FullGameState, Role, RoundState, Team } from './types';
+import { questSize, failsRequired, GOOD_ROLES, teamForRole } from './constants';
 
-export type Team = 'good' | 'evil';
-
-const GOOD_ROLES: Role[] = [
-  'merlin', 'percival', 'untrustworthy_servant', 'senior_messenger',
-  'junior_messenger', 'good_sorcerer', 'troublemaker', 'cleric',
-  'good_lancelot', 'loyal_servant',
-];
-
-export function teamForRole(role: Role): Team {
-  return GOOD_ROLES.includes(role) ? 'good' : 'evil';
-}
+export { teamForRole } from './constants';
 
 export function deriveQuestResult(quest: Quest, playerCount: number): 'success' | 'fail' | null {
   if (quest.success_count === null && quest.fail_count === null) return quest.result ?? null;

@@ -26,6 +26,7 @@
     let destroyed = false;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
     let socket: WebSocket;
+    let backoff = 1000;
 
     gameState = null;
     error = '';
@@ -36,7 +37,7 @@
       const url = `${protocol}//${window.location.host}${BASE_PATH}api/games/${gameId}/ws`;
       socket = new WebSocket(url);
 
-      socket.onopen = () => { error = ''; };
+      socket.onopen = () => { error = ''; backoff = 1000; };
 
       socket.onmessage = (event) => {
         try {
@@ -51,7 +52,8 @@
 
       socket.onclose = () => {
         if (!destroyed) {
-          reconnectTimeout = setTimeout(connect, 1000);
+          reconnectTimeout = setTimeout(connect, backoff);
+          backoff = Math.min(backoff * 2, 30000);
         }
       };
 

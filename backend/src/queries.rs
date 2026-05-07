@@ -9,7 +9,10 @@ pub fn load_full_game_state(
     pool: &DbPool,
     game_id: &str,
 ) -> Result<FullGameState, diesel::result::Error> {
-    let mut conn = pool.get().expect("Failed to get DB connection");
+    let mut conn = pool.get().map_err(|_| diesel::result::Error::DatabaseError(
+        diesel::result::DatabaseErrorKind::Unknown,
+        Box::new("Connection pool exhausted".to_string()),
+    ))?;
 
     let game = schema::games::table
         .find(game_id)

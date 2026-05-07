@@ -30,6 +30,8 @@ impl AppState {
         drop(channels);
 
         let mut channels = self.channels.write().await;
+        // Prune channels with no active receivers
+        channels.retain(|_, tx| tx.receiver_count() > 0);
         channels
             .entry(game_id.to_string())
             .or_insert_with(|| {

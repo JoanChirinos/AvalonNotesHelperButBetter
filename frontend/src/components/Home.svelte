@@ -129,10 +129,10 @@
             </div>
             {#if summary.player_names.length > 0}
               {@const paired = summary.player_names.map((name, i) => ({ name, role: summary.player_roles[i] })).sort((a, b) => {
-                // Good first, then evil, then unassigned
+                const order: Record<string, number> = { good: 0, evil: 1, z: 2 };
                 const teamA = a.role ? teamForRole(a.role) : 'z';
                 const teamB = b.role ? teamForRole(b.role) : 'z';
-                if (teamA !== teamB) return teamA === 'good' ? -1 : 1;
+                if (teamA !== teamB) return order[teamA] - order[teamB];
                 return a.name.localeCompare(b.name);
               })}
               <div class="flex flex-wrap gap-1 mt-1">

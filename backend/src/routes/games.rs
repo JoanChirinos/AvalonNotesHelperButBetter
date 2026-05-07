@@ -15,6 +15,10 @@ fn db_err(e: diesel::result::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
 }
 
+fn get_conn(pool: &crate::db::DbPool) -> Result<diesel::r2d2::PooledConnection<diesel::r2d2::ConnectionManager<diesel::SqliteConnection>>, (StatusCode, String)> {
+    pool.get().map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, format!("DB pool exhausted: {e}")))
+}
+
 fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -34,7 +38,7 @@ pub async fn create_game(
     State(state): State<AppState>,
     Json(req): Json<CreateGameRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
     let game_id = new_id();
 
     conn.transaction(|conn| {
@@ -124,7 +128,7 @@ pub async fn create_game(
 pub async fn list_games(
     State(state): State<AppState>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
     let games = schema::games::table
         .order(schema::games::created_at.desc())
         .load::<Game>(&mut conn)
@@ -162,18 +166,13 @@ pub async fn list_games(
             player_roles: roles,
             has_started: round_count > 0,
             result: {
-                let successes = schema::quests::table
+                let quest_results: Vec<Option<String>> = schema::quests::table
                     .filter(schema::quests::game_id.eq(&game_id_ref))
-                    .filter(schema::quests::result.eq("success"))
-                    .count()
-                    .get_result::<i64>(&mut conn)
-                    .unwrap_or(0);
-                let fails = schema::quests::table
-                    .filter(schema::quests::game_id.eq(&game_id_ref))
-                    .filter(schema::quests::result.eq("fail"))
-                    .count()
-                    .get_result::<i64>(&mut conn)
-                    .unwrap_or(0);
+                    .select(schema::quests::result)
+                    .load(&mut conn)
+                    .unwrap_or_default();
+                let successes = quest_results.iter().filter(|r| r.as_deref() == Some("success")).count() as i64;
+                let fails = quest_results.iter().filter(|r| r.as_deref() == Some("fail")).count() as i64;
                 if fails >= 3 {
                     Some("evil".to_string())
                 } else if successes >= 3 {
@@ -226,7 +225,7 @@ pub async fn update_game(
     Path(game_id): Path<String>,
     Json(req): Json<UpdateGameRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     if let Some(ref finished_at) = req.finished_at {
         diesel::update(schema::games::table.find(&game_id))
@@ -250,7 +249,7 @@ pub async fn update_game(
 pub async fn list_known_players(
     State(state): State<AppState>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
     let players = schema::known_players::table
         .order(schema::known_players::name.asc())
         .load::<KnownPlayer>(&mut conn)
@@ -263,21 +262,30 @@ pub async fn add_player(
     Path(game_id): Path<String>,
     Json(req): Json<AddPlayerRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     // Resolve or create known player
     let kp_id = if let Some(id) = req.known_player_id {
         id
     } else if let Some(name) = req.name {
-        let id = new_id();
-        diesel::insert_into(schema::known_players::table)
-            .values(&NewKnownPlayer {
-                id: id.clone(),
-                name,
-            })
-            .execute(&mut conn)
-            .map_err(db_err)?;
-        id
+        // Look up existing known_player by name, or create new
+        let existing: Option<KnownPlayer> = schema::known_players::table
+            .filter(schema::known_players::name.eq(&name))
+            .first(&mut conn)
+            .ok();
+        if let Some(kp) = existing {
+            kp.id
+        } else {
+            let id = new_id();
+            diesel::insert_into(schema::known_players::table)
+                .values(&NewKnownPlayer {
+                    id: id.clone(),
+                    name,
+                })
+                .execute(&mut conn)
+                .map_err(db_err)?;
+            id
+        }
     } else {
         return Err((StatusCode::BAD_REQUEST, "Provide known_player_id or name".to_string()));
     };
@@ -308,7 +316,7 @@ pub async fn reorder_players(
     Path(game_id): Path<String>,
     Json(req): Json<ReorderPlayersRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     conn.transaction(|conn| {
         for (i, pid) in req.player_ids.iter().enumerate() {
@@ -333,7 +341,7 @@ pub async fn update_player(
     Path((game_id, player_id)): Path<(String, String)>,
     Json(req): Json<UpdatePlayerRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     if let Some(seat_order) = req.seat_order {
         diesel::update(schema::players::table.find(&player_id))
@@ -361,7 +369,7 @@ pub async fn delete_player(
     State(state): State<AppState>,
     Path((game_id, player_id)): Path<(String, String)>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::delete(schema::players::table.find(&player_id))
         .execute(&mut conn)
@@ -378,7 +386,7 @@ pub async fn add_role(
     Path(game_id): Path<String>,
     Json(req): Json<AddRoleRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::insert_into(schema::game_roles::table)
         .values(&NewGameRole {
@@ -397,7 +405,7 @@ pub async fn delete_role(
     State(state): State<AppState>,
     Path((game_id, role_id)): Path<(String, String)>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::delete(schema::game_roles::table.find(&role_id))
         .execute(&mut conn)
@@ -412,7 +420,7 @@ pub async fn add_module(
     Path(game_id): Path<String>,
     Json(req): Json<AddModuleRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::insert_into(schema::game_modules::table)
         .values(&NewGameModule {
@@ -431,7 +439,7 @@ pub async fn delete_module(
     State(state): State<AppState>,
     Path((game_id, module_id)): Path<(String, String)>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::delete(schema::game_modules::table.find(&module_id))
         .execute(&mut conn)
@@ -448,7 +456,7 @@ pub async fn update_quest(
     Path((game_id, quest_id)): Path<(String, String)>,
     Json(req): Json<UpdateQuestRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     if let Some(result) = req.result {
         diesel::update(schema::quests::table.find(&quest_id))
@@ -498,7 +506,7 @@ pub async fn create_round(
     Path((game_id, quest_id)): Path<(String, String)>,
     Json(req): Json<CreateRoundRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     conn.transaction(|conn| {
         let existing: i64 = schema::rounds::table
@@ -539,7 +547,7 @@ pub async fn update_round(
     Path((game_id, round_id)): Path<(String, String)>,
     Json(req): Json<UpdateRoundRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     conn.transaction(|conn| {
         if let Some(ref leader) = req.leader_player_id {
@@ -582,7 +590,7 @@ pub async fn record_votes(
     Path((game_id, round_id)): Path<(String, String)>,
     Json(req): Json<RecordVotesRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     conn.transaction(|conn| {
         diesel::delete(
@@ -615,7 +623,7 @@ pub async fn create_lady_investigation(
     Path(game_id): Path<String>,
     Json(req): Json<CreateLadyInvestigationRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     conn.transaction(|conn| {
         diesel::insert_into(schema::lady_investigations::table)
@@ -657,7 +665,7 @@ pub async fn create_lancelot_switch(
     Path(game_id): Path<String>,
     Json(req): Json<CreateLancelotSwitchRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::insert_into(schema::lancelot_switches::table)
         .values(&NewLancelotSwitch {
@@ -680,7 +688,7 @@ pub async fn create_plot_card(
     Path(game_id): Path<String>,
     Json(req): Json<CreatePlotCardRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::insert_into(schema::plot_cards::table)
         .values(&NewPlotCard {
@@ -704,7 +712,7 @@ pub async fn update_plot_card(
     Path((game_id, plot_card_id)): Path<(String, String)>,
     Json(req): Json<UpdatePlotCardRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     if let Some(status) = req.status {
         diesel::update(schema::plot_cards::table.find(&plot_card_id))
@@ -730,7 +738,7 @@ pub async fn create_assassination_attempt(
     Path(game_id): Path<String>,
     Json(req): Json<CreateAssassinationAttemptRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::insert_into(schema::assassination_attempts::table)
         .values(&NewAssassinationAttempt {
@@ -756,7 +764,7 @@ pub async fn create_note(
     Path(game_id): Path<String>,
     Json(req): Json<CreateNoteRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::insert_into(schema::notes::table)
         .values(&NewNote {
@@ -778,7 +786,7 @@ pub async fn update_note(
     Path((game_id, note_id)): Path<(String, String)>,
     Json(req): Json<UpdateNoteRequest>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     if let Some(ref content) = req.content {
         diesel::update(schema::notes::table.find(&note_id))
@@ -795,7 +803,7 @@ pub async fn delete_note(
     State(state): State<AppState>,
     Path((game_id, note_id)): Path<(String, String)>,
 ) -> ApiResult<impl IntoResponse> {
-    let mut conn = state.db.get().expect("DB connection");
+    let mut conn = get_conn(&state.db)?;
 
     diesel::delete(schema::notes::table.find(&note_id))
         .execute(&mut conn)
