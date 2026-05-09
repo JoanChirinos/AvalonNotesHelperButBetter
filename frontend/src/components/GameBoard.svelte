@@ -7,6 +7,7 @@
   import CurrentRound from './CurrentRound.svelte';
   import LadyOfTheLake from './LadyOfTheLake.svelte';
   import SuspicionSidebar from './SuspicionSidebar.svelte';
+  import NotesChat from './NotesChat.svelte';
   import { Flag, PanelLeftOpen, PanelLeftClose } from 'lucide-svelte';
 
   interface Props {
@@ -108,3 +109,5 @@
     {/if}
   </div>
 </div>
+
+<NotesChat gameId={gameState.game.id} />
