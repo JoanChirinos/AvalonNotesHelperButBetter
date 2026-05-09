@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { FullGameState, QuestState } from '../types';
-  import { deriveQuestResult } from '../derived';
+  import { deriveQuestResult, totalGoodMessages, totalEvilMessages } from '../derived';
   import RoundCard from './RoundCard.svelte';
   import RoundEditor from './RoundEditor.svelte';
 
@@ -15,18 +15,19 @@
 
   let quest = $derived(questState.quest);
   let rounds = $derived(questState.rounds);
-  let result = $derived(deriveQuestResult(quest, gameState.players.length));
+  let msgTotals = $derived(quest.quest_number === 5 ? { good: totalGoodMessages(gameState), evil: totalEvilMessages(gameState) } : undefined);
+  let result = $derived(deriveQuestResult(quest, gameState.players.length, msgTotals));
   let isCurrent = $derived(quest.quest_number === gameState.game.current_quest);
 </script>
 
 {#if rounds.length > 0}
   <div
-    class="card shadow-sm shrink-0"
+    class="card shadow-sm shrink-0 overflow-hidden"
     class:bg-base-100={!result}
     style:background-color={result === 'success' ? 'oklch(var(--su) / 0.1)' : result === 'fail' ? 'oklch(var(--er) / 0.1)' : ''}
   >
     <div
-      class="px-3 py-1.5 rounded-t-2xl text-sm font-semibold"
+      class="px-3 py-1.5 text-sm font-semibold"
       class:bg-success={result === 'success'}
       class:text-success-content={result === 'success'}
       class:bg-error={result === 'fail'}
@@ -56,6 +57,7 @@
             {roundState}
             questNumber={quest.quest_number}
             showResult={roundState.round.status === 'approved'}
+            questResult={result}
             onEdit={onEditRound ? () => onEditRound(roundState.round.id) : undefined}
           />
         {/if}

@@ -3,14 +3,32 @@ import { questSize, failsRequired, GOOD_ROLES, teamForRole } from './constants';
 
 export { teamForRole } from './constants';
 
-export function deriveQuestResult(quest: Quest, playerCount: number): 'success' | 'fail' | null {
+export function deriveQuestResult(
+  quest: Quest,
+  playerCount: number,
+  messageTotals?: { good: number; evil: number }
+): 'success' | 'fail' | null {
   if (quest.success_count === null && quest.fail_count === null) return quest.result ?? null;
 
-  const fails = (quest.fail_count ?? 0) + (quest.evil_message_count ?? 0);
-  const threshold = failsRequired(playerCount, quest.quest_number);
-  let result: 'success' | 'fail' = fails >= threshold ? 'fail' : 'success';
-
+  const regularFails = quest.fail_count ?? 0;
   const magicCount = quest.magic_count ?? 0;
+
+  let effectiveFails = regularFails + (quest.evil_message_count ?? 0);
+
+  // Quest 5 message resolution
+  if (quest.quest_number === 5 && messageTotals) {
+    const goodApplies = messageTotals.good >= 3;
+    const evilApplies = messageTotals.evil >= 2;
+    if (goodApplies && !evilApplies) {
+      effectiveFails = Math.max(0, regularFails - 1) + (quest.evil_message_count ?? 0);
+    } else if (evilApplies && !goodApplies) {
+      effectiveFails = regularFails + 1 + (quest.evil_message_count ?? 0);
+    }
+  }
+
+  const threshold = failsRequired(playerCount, quest.quest_number);
+  let result: 'success' | 'fail' = effectiveFails >= threshold ? 'fail' : 'success';
+
   if (magicCount % 2 === 1) result = result === 'success' ? 'fail' : 'success';
 
   return result;

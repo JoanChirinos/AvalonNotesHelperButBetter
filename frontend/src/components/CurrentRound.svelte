@@ -39,12 +39,14 @@
   let goodMsgCount = $state(0);
   let evilMsgCount = $state(0);
 
-  // Reset card counts when the round changes
+  // Reset card counts and restart timer when the round changes
   let lastRoundId = $state('');
   $effect(() => {
     if (round.id !== lastRoundId) {
+      const isInitial = lastRoundId === '';
       lastRoundId = round.id;
       successCount = 0; failCount = 0; magicCount = 0; goodMsgCount = 0; evilMsgCount = 0;
+      if (!isInitial) window.dispatchEvent(new CustomEvent('anh:round-change'));
     }
   });
 

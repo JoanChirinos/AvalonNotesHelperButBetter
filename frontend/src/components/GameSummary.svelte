@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from '../api';
   import type { FullGameState, Role, SnipeType } from '../types';
-  import { deriveQuestResult, playerNameById, teamForRole } from '../derived';
+  import { deriveQuestResult, playerNameById, teamForRole, totalGoodMessages, totalEvilMessages } from '../derived';
   import { ROLE_DISPLAY_NAMES, GOOD_ROLES, EVIL_ROLES } from '../constants';
   import QuestTrack from './QuestTrack.svelte';
   import QuestCard from './QuestCard.svelte';
@@ -24,11 +24,12 @@
   );
   let attempts = $derived(gameState.assassination_attempts);
 
+  let msgTotals = $derived({ good: totalGoodMessages(gameState), evil: totalEvilMessages(gameState) });
   let failedQuests = $derived(
-    gameState.quests.filter(q => deriveQuestResult(q.quest, players.length) === 'fail').length
+    gameState.quests.filter(q => deriveQuestResult(q.quest, players.length, q.quest.quest_number === 5 ? msgTotals : undefined) === 'fail').length
   );
   let succeededQuests = $derived(
-    gameState.quests.filter(q => deriveQuestResult(q.quest, players.length) === 'success').length
+    gameState.quests.filter(q => deriveQuestResult(q.quest, players.length, q.quest.quest_number === 5 ? msgTotals : undefined) === 'success').length
   );
   let assassinationNeeded = $derived(succeededQuests >= 3);
 

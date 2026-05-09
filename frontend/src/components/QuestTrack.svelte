@@ -44,7 +44,7 @@
     <!-- Quests + Messages -->
     <div class="flex items-center gap-2 shrink-0">
       {#each quests as qs}
-      {@const result = deriveQuestResult(qs.quest, players.length)}
+      {@const result = deriveQuestResult(qs.quest, players.length, qs.quest.quest_number === 5 ? { good: goodMsgs, evil: evilMsgs } : undefined)}
       {@const size = questSize(players.length, qs.quest.quest_number)}
       {@const needsTwo = failsRequired(players.length, qs.quest.quest_number) === 2}
       {@const isCurrent = qs.quest.quest_number === gameState.game.current_quest}

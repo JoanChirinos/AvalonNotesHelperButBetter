@@ -7,6 +7,13 @@
   let running = $state(false);
   let interval: ReturnType<typeof setInterval> | null = null;
 
+  function handleRoundChange() { restart(); start(); }
+
+  $effect(() => {
+    window.addEventListener('anh:round-change', handleRoundChange);
+    return () => window.removeEventListener('anh:round-change', handleRoundChange);
+  });
+
   onDestroy(() => { if (interval) clearInterval(interval); });
 
   let minutes = $derived(Math.floor(remaining / 60));

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from '../api';
   import type { FullGameState } from '../types';
-  import { deriveQuestResult } from '../derived';
+  import { deriveQuestResult, totalGoodMessages, totalEvilMessages } from '../derived';
   import QuestTrack from './QuestTrack.svelte';
   import QuestCard from './QuestCard.svelte';
   import CurrentRound from './CurrentRound.svelte';
@@ -17,11 +17,12 @@
 
   let { gameState, onNavigate }: Props = $props();
 
+  let msgTotals = $derived({ good: totalGoodMessages(gameState), evil: totalEvilMessages(gameState) });
   let failedQuests = $derived(
-    gameState.quests.filter(q => deriveQuestResult(q.quest, gameState.players.length) === 'fail').length
+    gameState.quests.filter(q => deriveQuestResult(q.quest, gameState.players.length, q.quest.quest_number === 5 ? msgTotals : undefined) === 'fail').length
   );
   let succeededQuests = $derived(
-    gameState.quests.filter(q => deriveQuestResult(q.quest, gameState.players.length) === 'success').length
+    gameState.quests.filter(q => deriveQuestResult(q.quest, gameState.players.length, q.quest.quest_number === 5 ? msgTotals : undefined) === 'success').length
   );
   let gameOver = $derived(failedQuests >= 3 || succeededQuests >= 3);
 

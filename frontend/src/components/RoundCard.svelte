@@ -9,10 +9,11 @@
     roundState: RoundState;
     questNumber: number;
     showResult?: boolean;
+    questResult?: 'success' | 'fail' | null;
     onEdit?: () => void;
   }
 
-  let { gameState, roundState, questNumber, showResult = false, onEdit }: Props = $props();
+  let { gameState, roundState, questNumber, showResult = false, questResult = null, onEdit }: Props = $props();
 
   let round = $derived(roundState.round);
   let players = $derived(gameState.players);
@@ -35,9 +36,9 @@
 
 <div
   class="rounded-lg border p-2 text-sm"
-  class:border-base-300={!isApproved && !isRejected}
-  class:border-success={isApproved}
-  class:border-error={isRejected}
+  class:border-success={isApproved && questResult === 'success'}
+  class:border-error={isApproved && questResult === 'fail'}
+  class:border-base-300={!isApproved || !questResult}
   class:bg-base-100={!isRejected}
   class:bg-base-200={isRejected}
   class:cursor-pointer={!!onEdit}
