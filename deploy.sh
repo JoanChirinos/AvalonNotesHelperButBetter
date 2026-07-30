@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy Avalon Notes Helper: rebuild backend + frontend, restart backend.
+# Deploy Avalon Notes Helper: snapshot DB, rebuild backend + frontend, restart backend.
 # Frontend is served under /anh3/ (nginx root symlinks to frontend/dist), so
 # the base path MUST be baked in at build time or assets 404 -> blank screen.
 
@@ -11,6 +11,9 @@ LAUNCHD_LABEL="com.joanchirinos.anh3"
 
 export PATH="$NODE_BIN:$PATH"
 source "$HOME/.cargo/env"
+
+echo "==> Pre-deploy DB snapshot (rollback point)"
+"$REPO/scripts/backup-db.sh" predeploy
 
 echo "==> Building backend (cargo build --release)"
 cd "$REPO/backend"
