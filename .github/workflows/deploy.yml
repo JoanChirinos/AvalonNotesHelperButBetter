@@ -22,6 +22,13 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
 
+      - name: Test gate (cargo test)
+        run: |
+          export PATH="$HOME/.nvm/versions/node/v24.15.0/bin:$PATH"
+          source "$HOME/.cargo/env"
+          cd "$HOME/AvalonNotesHelperButBetter/backend"
+          cargo test
+
       - name: Build and deploy (snapshot + auto-rollback)
         env:
           ROLLBACK_SHA: ${{ steps.update.outputs.old_sha }}
