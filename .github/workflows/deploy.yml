@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two deploys at once; let an in-flight one finish.
+concurrency:
+  group: deploy-anh3
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, macOS, anh3]
+    steps:
+      - name: Update live checkout to origin/main
+        id: update
+        run: |
+          cd "$HOME/AvalonNotesHelperButBetter"
+          echo "old_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Build and deploy (snapshot + auto-rollback)
+        env:
+          ROLLBACK_SHA: ${{ steps.update.outputs.old_sha }}
+          SKIP_PULL: "1"
+        run: |
+          cd "$HOME/AvalonNotesHelperButBetter"
+          ./deploy.sh
