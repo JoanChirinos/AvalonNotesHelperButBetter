@@ -14,6 +14,9 @@ use tracing_subscriber;
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    // TEMP: deliberate startup panic to demo CI auto-rollback. Revert me.
+    panic!("intentional rollback demo");
+
     let pool = db::init_pool("avalon.db");
     let state = state::AppState::new(pool);
 
