@@ -8,7 +8,8 @@
   import LadyOfTheLake from './LadyOfTheLake.svelte';
   import SuspicionSidebar from './SuspicionSidebar.svelte';
   import NotesChat from './NotesChat.svelte';
-  import { Flag, PanelLeftOpen, PanelLeftClose } from 'lucide-svelte';
+  import { Flag, PanelLeftOpen, PanelLeftClose, Eye } from 'lucide-svelte';
+  import RevealScript from './RevealScript.svelte';
 
   interface Props {
     gameState: FullGameState;
@@ -41,6 +42,7 @@
 
   let editingRoundId = $state<string | null>(null);
   let showSuspicions = $state(false);
+  let showReveal = $state(false);
 
   async function endGame() {
     try {
@@ -64,14 +66,17 @@
   {/if}
 
   <div class="flex-1 space-y-4">
-    <!-- Sidebar toggle -->
-    <div class="px-4">
+    <!-- Sidebar toggle + reveal -->
+    <div class="px-4 flex items-center justify-between">
       <button class="btn btn-ghost btn-xs" onclick={() => showSuspicions = !showSuspicions} title="Suspicions">
         {#if showSuspicions}
           <PanelLeftClose size={16} />
         {:else}
           <PanelLeftOpen size={16} />
         {/if}
+      </button>
+      <button class="btn btn-ghost btn-sm gap-1" onclick={() => showReveal = true}>
+        <Eye size={16} /> Read Reveal
       </button>
     </div>
 
@@ -112,3 +117,11 @@
 </div>
 
 <NotesChat gameId={gameState.game.id} />
+
+{#if showReveal}
+  <RevealScript
+    roles={gameState.roles.map((r) => r.role)}
+    modules={gameState.modules.map((m) => m.module)}
+    onClose={() => showReveal = false}
+  />
+{/if}

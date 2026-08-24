@@ -94,7 +94,7 @@ describe('teamForRole', () => {
 describe('totalGoodMessages / totalEvilMessages', () => {
   function makeState(quests: Partial<Quest>[]): FullGameState {
     return {
-      game: { id: 'g1', created_at: '', finished_at: null, current_quest: 1 },
+      game: { id: 'g1', created_at: '', finished_at: null, current_quest: 1, namespace: 'SGW' },
       players: [],
       known_players: [],
       roles: [],
@@ -130,7 +130,7 @@ describe('totalGoodMessages / totalEvilMessages', () => {
 describe('hasSorcerers / hasMessengers', () => {
   function makeState(roles: string[]): FullGameState {
     return {
-      game: { id: 'g1', created_at: '', finished_at: null, current_quest: 1 },
+      game: { id: 'g1', created_at: '', finished_at: null, current_quest: 1, namespace: 'SGW' },
       players: [],
       known_players: [],
       roles: roles.map(r => ({ id: r, game_id: 'g1', role: r as Role })),
