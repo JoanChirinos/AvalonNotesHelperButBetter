@@ -15,6 +15,7 @@ pub struct Game {
     pub finished_at: Option<String>,
     pub deleted_at: Option<String>,
     pub current_quest: i32,
+    pub namespace: String,
 }
 
 #[derive(Debug, Clone, Queryable, Selectable, Serialize)]
@@ -23,6 +24,7 @@ pub struct Game {
 pub struct KnownPlayer {
     pub id: String,
     pub name: String,
+    pub namespace: String,
 }
 
 #[derive(Debug, Clone, Queryable, Selectable, Serialize)]
@@ -176,6 +178,7 @@ pub struct Note {
 pub struct NewGame {
     pub id: String,
     pub current_quest: i32,
+    pub namespace: String,
 }
 
 #[derive(Debug, Insertable)]
@@ -183,6 +186,7 @@ pub struct NewGame {
 pub struct NewKnownPlayer {
     pub id: String,
     pub name: String,
+    pub namespace: String,
 }
 
 #[derive(Debug, Insertable)]
@@ -310,6 +314,16 @@ pub struct NewNote {
 
 // ── API request structs ──
 
+fn default_namespace() -> String {
+    "SGW".to_string()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NamespaceQuery {
+    #[serde(default = "default_namespace")]
+    pub namespace: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateGameRequest {
     #[serde(default)]
@@ -319,6 +333,8 @@ pub struct CreateGameRequest {
     #[serde(default)]
     pub modules: Vec<Module>,
     pub lady_holder_player_index: Option<usize>,
+    #[serde(default = "default_namespace")]
+    pub namespace: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,4 +1,4 @@
-use axum::extract::{Json, Path, State};
+use axum::extract::{Json, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use diesel::prelude::*;
@@ -41,11 +41,14 @@ pub async fn create_game(
     let mut conn = get_conn(&state.db)?;
     let game_id = new_id();
 
+    let namespace = req.namespace.clone();
+
     conn.transaction(|conn| {
         diesel::insert_into(schema::games::table)
             .values(&NewGame {
                 id: game_id.clone(),
                 current_quest: 1,
+                namespace: namespace.clone(),
             })
             .execute(conn)?;
 
@@ -55,6 +58,7 @@ pub async fn create_game(
                 .values(&NewKnownPlayer {
                     id: kp_id.clone(),
                     name: name.clone(),
+                    namespace: namespace.clone(),
                 })
                 .execute(conn)?;
 
@@ -127,10 +131,12 @@ pub async fn create_game(
 
 pub async fn list_games(
     State(state): State<AppState>,
+    Query(q): Query<NamespaceQuery>,
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = get_conn(&state.db)?;
     let games = schema::games::table
         .filter(schema::games::deleted_at.is_null())
+        .filter(schema::games::namespace.eq(&q.namespace))
         .order(schema::games::created_at.desc())
         .load::<Game>(&mut conn)
         .map_err(db_err)?;
@@ -261,9 +267,11 @@ pub async fn delete_game(
 
 pub async fn list_known_players(
     State(state): State<AppState>,
+    Query(q): Query<NamespaceQuery>,
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = get_conn(&state.db)?;
     let players = schema::known_players::table
+        .filter(schema::known_players::namespace.eq(&q.namespace))
         .order(schema::known_players::name.asc())
         .load::<KnownPlayer>(&mut conn)
         .map_err(db_err)?;
@@ -277,12 +285,20 @@ pub async fn add_player(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = get_conn(&state.db)?;
 
+    // The known-player roster is scoped to the game's namespace.
+    let namespace: String = schema::games::table
+        .find(&game_id)
+        .select(schema::games::namespace)
+        .first(&mut conn)
+        .map_err(db_err)?;
+
     // Resolve or create known player
     let kp_id = if let Some(id) = req.known_player_id {
         id
     } else if let Some(name) = req.name {
-        // Look up existing known_player by name, or create new
+        // Look up existing known_player by (namespace, name), or create new
         let existing: Option<KnownPlayer> = schema::known_players::table
+            .filter(schema::known_players::namespace.eq(&namespace))
             .filter(schema::known_players::name.eq(&name))
             .first(&mut conn)
             .ok();
@@ -294,6 +310,7 @@ pub async fn add_player(
                 .values(&NewKnownPlayer {
                     id: id.clone(),
                     name,
+                    namespace: namespace.clone(),
                 })
                 .execute(&mut conn)
                 .map_err(db_err)?;

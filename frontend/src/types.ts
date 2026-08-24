@@ -30,11 +30,13 @@ export interface Game {
   created_at: string;
   finished_at: string | null;
   current_quest: number;
+  namespace: string;
 }
 
 export interface KnownPlayer {
   id: string;
   name: string;
+  namespace: string;
 }
 
 export interface Player {
@@ -185,6 +187,7 @@ export interface CreateGame {
   roles?: Role[];
   modules?: Module[];
   lady_holder_player_index?: number;
+  namespace?: string;
 }
 
 export interface UpdateGame {

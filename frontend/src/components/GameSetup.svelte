@@ -41,7 +41,7 @@
 
   async function loadKnownPlayers() {
     try {
-      allKnownPlayers = await api.listKnownPlayers();
+      allKnownPlayers = await api.listKnownPlayers(gameState.game.namespace);
     } catch (e) {
       error = String(e);
     }

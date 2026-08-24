@@ -5,10 +5,11 @@
   import { Trash2 } from 'lucide-svelte';
 
   interface Props {
+    namespace: string;
     onNavigate: (path: string) => void;
   }
 
-  let { onNavigate }: Props = $props();
+  let { namespace, onNavigate }: Props = $props();
 
   let games = $state<GameSummary[]>([]);
   let error = $state('');
@@ -34,7 +35,7 @@
   async function loadGames() {
     try {
       loading = true;
-      games = await api.listGames();
+      games = await api.listGames(namespace);
     } catch (e) {
       error = String(e);
     } finally {
@@ -44,7 +45,7 @@
 
   async function createGame() {
     try {
-      const state = await api.createGame({});
+      const state = await api.createGame({ namespace });
       onNavigate(`#/game/${state.game.id}`);
     } catch (e) {
       error = String(e);

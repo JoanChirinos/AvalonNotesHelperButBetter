@@ -35,6 +35,7 @@ diesel::table! {
         finished_at -> Nullable<Text>,
         deleted_at -> Nullable<Text>,
         current_quest -> Integer,
+        namespace -> Text,
     }
 }
 
@@ -42,6 +43,7 @@ diesel::table! {
     known_players (id) {
         id -> Text,
         name -> Text,
+        namespace -> Text,
     }
 }
 

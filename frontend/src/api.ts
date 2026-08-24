@@ -19,14 +19,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   // Games
-  listGames: () => request<GameSummary[]>('GET', '/games'),
+  listGames: (namespace: string) =>
+    request<GameSummary[]>('GET', `/games?namespace=${encodeURIComponent(namespace)}`),
   getGame: (id: string) => request<FullGameState>('GET', `/games/${id}`),
   createGame: (data: CreateGame) => request<FullGameState>('POST', '/games', data),
   updateGame: (id: string, data: UpdateGame) => request<FullGameState>('PATCH', `/games/${id}`, data),
   deleteGame: (id: string) => request<void>('DELETE', `/games/${id}`),
 
   // Known players
-  listKnownPlayers: () => request<KnownPlayer[]>('GET', '/known-players'),
+  listKnownPlayers: (namespace: string) =>
+    request<KnownPlayer[]>('GET', `/known-players?namespace=${encodeURIComponent(namespace)}`),
 
   // Players
   addPlayer: (gameId: string, data: { known_player_id?: string; name?: string }) =>
