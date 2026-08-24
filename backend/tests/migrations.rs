@@ -31,10 +31,14 @@ fn migrations_apply_to_empty_db() {
 /// on a different machine — so the suite stays portable.
 #[test]
 fn migrations_apply_to_copy_of_live_db() {
-    let live = format!(
-        "{}/AvalonNotesHelperButBetter/backend/avalon.db",
-        std::env::var("HOME").unwrap_or_default()
-    );
+    // ANH_LIVE_DB lets us point at a copy of prod data on a machine that doesn't
+    // host the live app (CI leaves it unset and uses the on-host path).
+    let live = std::env::var("ANH_LIVE_DB").unwrap_or_else(|_| {
+        format!(
+            "{}/AvalonNotesHelperButBetter/backend/avalon.db",
+            std::env::var("HOME").unwrap_or_default()
+        )
+    });
     if !std::path::Path::new(&live).exists() {
         eprintln!("skipping: live DB not found at {live}");
         return;

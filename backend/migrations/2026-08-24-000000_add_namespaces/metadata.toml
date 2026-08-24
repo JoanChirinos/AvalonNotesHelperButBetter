@@ -1,0 +1,4 @@
+# Rebuilding known_players (FK target of players) requires PRAGMA foreign_keys=OFF,
+# which is a no-op inside a transaction. Run this migration outside one so the
+# pragma takes effect. The pre-deploy DB snapshot covers the loss of atomicity.
+run_in_transaction = false

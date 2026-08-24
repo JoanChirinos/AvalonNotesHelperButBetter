@@ -6,11 +6,12 @@
 -- `known_players` (the shared roster) must change its uniqueness from UNIQUE(name)
 -- to UNIQUE(namespace, name) so different namespaces can each have e.g. a "Joan".
 -- SQLite can't drop a table-level constraint in place, so we rebuild the table.
--- `players` has a FK to known_players(id); defer_foreign_keys lets the drop/rename
--- happen inside diesel's migration transaction (ids are preserved, so FKs hold at
--- commit). defer_foreign_keys (unlike foreign_keys) is settable inside a transaction.
+-- `players` has a FK to known_players(id); the standard SQLite rebuild recipe
+-- turns foreign_keys OFF around the drop/rename (ids are preserved, so refs stay
+-- valid). foreign_keys is a no-op inside a transaction, so this migration runs
+-- outside one (see metadata.toml).
 
-PRAGMA defer_foreign_keys = ON;
+PRAGMA foreign_keys = OFF;
 
 ALTER TABLE games ADD COLUMN namespace TEXT NOT NULL DEFAULT 'SGW';
 
@@ -27,3 +28,5 @@ INSERT INTO known_players_new (id, name, namespace)
 DROP TABLE known_players;
 
 ALTER TABLE known_players_new RENAME TO known_players;
+
+PRAGMA foreign_keys = ON;
