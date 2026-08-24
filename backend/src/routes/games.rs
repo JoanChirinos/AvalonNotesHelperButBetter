@@ -265,6 +265,19 @@ pub async fn delete_game(
 
 // ── Players ──
 
+pub async fn list_namespaces(
+    State(state): State<AppState>,
+) -> ApiResult<impl IntoResponse> {
+    let mut conn = get_conn(&state.db)?;
+    let namespaces: Vec<String> = schema::games::table
+        .select(schema::games::namespace)
+        .distinct()
+        .order(schema::games::namespace.asc())
+        .load::<String>(&mut conn)
+        .map_err(db_err)?;
+    Ok(Json(namespaces))
+}
+
 pub async fn list_known_players(
     State(state): State<AppState>,
     Query(q): Query<NamespaceQuery>,

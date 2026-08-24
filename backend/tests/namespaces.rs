@@ -101,6 +101,19 @@ async fn add_player_uses_game_namespace() {
     assert!(!sgw_names.contains(&"Zoe"));
 }
 
+/// The namespaces endpoint lists the distinct namespaces that have games, sorted.
+#[tokio::test]
+async fn list_namespaces_returns_distinct_sorted() {
+    let server = test_server();
+    create_game_in_ns(&server, "beta", &["A"]).await;
+    create_game_in_ns(&server, "alpha", &["B"]).await;
+    create_game_in_ns(&server, "alpha", &["C"]).await; // duplicate namespace
+
+    let ns = server.get("/api/namespaces").await.json::<Value>();
+    let names: Vec<&str> = ns.as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    assert_eq!(names, vec!["alpha", "beta"]);
+}
+
 /// Omitting the namespace on create defaults to SGW (back-compat for old clients).
 #[tokio::test]
 async fn create_defaults_to_sgw_when_omitted() {

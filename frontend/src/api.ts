@@ -18,6 +18,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
+  // Namespaces
+  listNamespaces: () => request<string[]>('GET', '/namespaces'),
+
   // Games
   listGames: (namespace: string) =>
     request<GameSummary[]>('GET', `/games?namespace=${encodeURIComponent(namespace)}`),
