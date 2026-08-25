@@ -1,8 +1,8 @@
 <script lang="ts">
   import { api } from '../api';
   import type { FullGameState, RoundState, Vote } from '../types';
-  import { questSize, failsRequired } from '../constants';
-  import { playerNameById, hasSorcerers, hasMessengers } from '../derived';
+  import { questSize } from '../constants';
+  import { playerNameById, hasSorcerers, hasMessengers, resultFromCounts } from '../derived';
   import { Check, X, Pencil } from 'lucide-svelte';
 
   interface Props {
@@ -47,14 +47,12 @@
     }
   });
 
-  // Preview result
+  // Preview result (shares deriveQuestResult via resultFromCounts, incl. quest-5 message backup)
   let previewResult = $derived.by(() => {
     if (!isApproved) return null;
-    const fails = failCount + evilMsgCount;
-    const threshold = failsRequired(players.length, questNumber);
-    let result: 'success' | 'fail' = fails >= threshold ? 'fail' : 'success';
-    if (magicCount % 2 === 1) result = result === 'success' ? 'fail' : 'success';
-    return result;
+    return resultFromCounts(gameState, questNumber, {
+      success: successCount, fail: failCount, magic: magicCount, good: goodMsgCount, evil: evilMsgCount,
+    });
   });
 
   async function setKing(playerId: string) {
@@ -86,13 +84,12 @@
 
   async function updateCardCounts() {
     try {
-      const fails = failCount + evilMsgCount;
-      const threshold = failsRequired(players.length, questNumber);
-      let result: 'success' | 'fail' = fails >= threshold ? 'fail' : 'success';
-      if (magicCount % 2 === 1) result = result === 'success' ? 'fail' : 'success';
+      const result = resultFromCounts(gameState, questNumber, {
+        success: successCount, fail: failCount, magic: magicCount, good: goodMsgCount, evil: evilMsgCount,
+      });
 
       await api.updateQuest(gameState.game.id, questId, {
-        result,
+        result: result ?? undefined,
         success_count: successCount,
         fail_count: failCount,
         magic_count: showSorcerers ? magicCount : undefined,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import type { Role, Module } from '../types';
-  import { buildRevealScript, pauseMs } from '../reveal';
+  import { buildRevealScript, pauseMs, type RevealLine } from '../reveal';
   import { X, Play } from 'lucide-svelte';
 
   interface Props {
@@ -12,13 +12,16 @@
 
   let { roles, modules, onClose }: Props = $props();
 
-  const script = $derived(buildRevealScript(roles, modules));
+  // Snapshotted when Start is pressed, so a mid-reveal WebSocket update to
+  // roles/modules can't change the lines out from under the playback loop.
+  let script = $state<RevealLine[]>([]);
 
   let started = $state(false);
   let done = $state(false);
   let currentIndex = $state(-1);
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
 
   const ttsAvailable = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
@@ -84,11 +87,11 @@
       if (voice) u.voice = voice;
 
       let finished = false;
-      let watchdog: ReturnType<typeof setTimeout>;
       const finish = () => {
         if (finished) return;
         finished = true;
-        clearTimeout(watchdog);
+        if (watchdog) clearTimeout(watchdog);
+        watchdog = null;
         resolve();
       };
       u.onend = finish;
@@ -109,6 +112,7 @@
   }
 
   async function play() {
+    script = buildRevealScript(roles, modules); // snapshot at Start
     started = true;
     for (let i = 0; i < script.length; i++) {
       if (cancelled) return;
@@ -120,18 +124,19 @@
     if (!cancelled) done = true;
   }
 
-  function stop() {
+  function teardown() {
     cancelled = true;
     if (timer) clearTimeout(timer);
+    if (watchdog) clearTimeout(watchdog);
     if (ttsAvailable) window.speechSynthesis.cancel();
+  }
+
+  function stop() {
+    teardown();
     onClose();
   }
 
-  onDestroy(() => {
-    cancelled = true;
-    if (timer) clearTimeout(timer);
-    if (ttsAvailable) window.speechSynthesis.cancel();
-  });
+  onDestroy(teardown);
 </script>
 
 <div class="fixed inset-0 z-50 bg-base-300 flex flex-col items-center justify-center p-8 text-center">

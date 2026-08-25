@@ -47,7 +47,14 @@ describe('buildRevealScript', () => {
   it('Untrustworthy Servant extends with the minions for Merlin', () => {
     const s = joined(['merlin', 'untrustworthy_servant', 'minion_of_mordred']);
     expect(s).toMatch(/and the Untrustworthy Servant, extend your thumb so Merlin/);
-    expect(s).toMatch(/and the Untrustworthy Servant, re-form your hand/);
+  });
+
+  it('reset lines are generic (no role-specific re-form/close)', () => {
+    // Mordred is excluded from the extend line but must not be told to re-form.
+    const s = joined(['merlin', 'mordred', 'oberon', 'minion_of_mordred']);
+    expect(s).not.toMatch(/Mordred, re-form/);
+    expect(s).not.toMatch(/Minions of Mordred, close your eyes/);
+    expect(s).toMatch(/Everyone, close your eyes and re-form your hand into a fist\./);
   });
 
   it('Cleric block appears only with Cleric', () => {
@@ -74,9 +81,9 @@ describe('buildRevealScript', () => {
   it('assigns long pauses to active lines and short to passive', () => {
     const script = buildRevealScript(['merlin', 'minion_of_mordred']);
     const look = script.find((l) => /open your eyes and look around/.test(l.text));
-    const close = script.find((l) => l.text === 'Minions of Mordred, close your eyes.');
+    const reset = script.find((l) => l.text.startsWith('Everyone, close your eyes and re-form'));
     expect(look?.pause).toBe('long');
-    expect(close?.pause).toBe('short');
+    expect(reset?.pause).toBe('short');
   });
 });
 

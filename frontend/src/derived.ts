@@ -34,6 +34,42 @@ export function deriveQuestResult(
   return result;
 }
 
+/**
+ * Compute a quest's result from in-progress (not-yet-persisted) card counts,
+ * applying the same rules as deriveQuestResult (magic flip + quest-5 message
+ * backup). Used by the round editors so the persisted result matches what the
+ * board derives for display.
+ */
+export function resultFromCounts(
+  state: FullGameState,
+  questNumber: number,
+  counts: { success: number; fail: number; magic: number; good: number; evil: number }
+): 'success' | 'fail' | null {
+  const q = state.quests.find(x => x.quest.quest_number === questNumber)?.quest;
+  if (!q) return null;
+  const questForCalc: Quest = {
+    ...q,
+    success_count: counts.success,
+    fail_count: counts.fail,
+    magic_count: counts.magic,
+    good_message_count: counts.good,
+    evil_message_count: counts.evil,
+  };
+  const messageTotals = questNumber === 5
+    ? {
+        good: state.quests.reduce(
+          (s, x) => s + (x.quest.quest_number === questNumber ? counts.good : (x.quest.good_message_count ?? 0)),
+          0
+        ),
+        evil: state.quests.reduce(
+          (s, x) => s + (x.quest.quest_number === questNumber ? counts.evil : (x.quest.evil_message_count ?? 0)),
+          0
+        ),
+      }
+    : undefined;
+  return deriveQuestResult(questForCalc, state.players.length, messageTotals);
+}
+
 export function currentQuestState(state: FullGameState): QuestState | null {
   return state.quests.find(q => q.quest.quest_number === state.game.current_quest) ?? null;
 }

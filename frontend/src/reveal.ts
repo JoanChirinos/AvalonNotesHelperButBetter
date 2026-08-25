@@ -37,10 +37,18 @@ interface RevealPart {
 const subject = (base: string, ...clauses: (string | false)[]): string =>
   base + clauses.filter(Boolean).join('');
 
+// Blanket reset between steps. Only the ACTION lines name specific roles (who
+// extends a thumb / opens their eyes); the reset is generic so we never tell a
+// role to undo something it didn't do (e.g. Mordred/Oberon who never opened).
+const RESET: RevealLine = {
+  text: 'Everyone, close your eyes and re-form your hand into a fist.',
+  pause: 'short',
+};
+
 // ── The script, as an ordered list of parts ──────────────────────────────────
 // To add a new role's reveal step in the future: add a RevealPart here. Each part
 // is self-contained (its own `applies` predicate and `lines`); order in this array
-// is the order narrated.
+// is the order narrated. Convention: name roles only on action lines, end with RESET.
 const PARTS: RevealPart[] = [
   {
     id: 'open',
@@ -55,8 +63,7 @@ const PARTS: RevealPart[] = [
     lines: () => [
       { text: 'Leader, extend your thumb if you are Evil.', pause: 'short' },
       { text: 'Cleric, open your eyes and see whether your Leader is Good or Evil.', pause: 'long' },
-      { text: 'Cleric, close your eyes.', pause: 'short' },
-      { text: 'Leader, re-form your hand into a fist.', pause: 'short' },
+      RESET,
     ],
   },
   {
@@ -67,7 +74,7 @@ const PARTS: RevealPart[] = [
         text: `${subject('Minions of Mordred', c.has('oberon') && ', except Oberon')}, open your eyes and look around so you know all agents of Evil.`,
         pause: 'long',
       },
-      { text: 'Minions of Mordred, close your eyes.', pause: 'short' },
+      RESET,
     ],
   },
   {
@@ -79,15 +86,10 @@ const PARTS: RevealPart[] = [
         c.has('mordred') && ', except Mordred',
         c.has('untrustworthy_servant') && ', and the Untrustworthy Servant',
       );
-      const reformSubject = subject(
-        'Minions of Mordred',
-        c.has('untrustworthy_servant') && ', and the Untrustworthy Servant',
-      );
       return [
         { text: `${extendSubject}, extend your thumb so Merlin will know of you.`, pause: 'short' },
         { text: 'Merlin, open your eyes and see the agents of Evil.', pause: 'long' },
-        { text: `${reformSubject}, re-form your hand into a fist.`, pause: 'short' },
-        { text: 'Merlin, close your eyes.', pause: 'short' },
+        RESET,
       ];
     },
   },
@@ -99,8 +101,7 @@ const PARTS: RevealPart[] = [
       return [
         { text: `${subj}, extend your thumb so Percival may know of you.`, pause: 'short' },
         { text: `Percival, open your eyes and see ${subj}.`, pause: 'long' },
-        { text: `${subj}, re-form your hand into a fist.`, pause: 'short' },
-        { text: 'Percival, close your eyes.', pause: 'short' },
+        RESET,
       ];
     },
   },
@@ -111,8 +112,7 @@ const PARTS: RevealPart[] = [
     lines: () => [
       { text: 'Junior Messenger, extend your thumb so the Senior Messenger may know you.', pause: 'short' },
       { text: 'Senior Messenger, open your eyes and see the Junior Messenger.', pause: 'long' },
-      { text: 'Senior Messenger, close your eyes.', pause: 'short' },
-      { text: 'Junior Messenger, re-form your hand into a fist.', pause: 'short' },
+      RESET,
     ],
   },
   {

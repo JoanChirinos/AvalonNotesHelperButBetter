@@ -1,8 +1,8 @@
 <script lang="ts">
   import { api } from '../api';
   import type { FullGameState, RoundState, Vote } from '../types';
-  import { questSize, failsRequired } from '../constants';
-  import { playerNameById, hasSorcerers, hasMessengers, deriveQuestResult } from '../derived';
+  import { questSize } from '../constants';
+  import { playerNameById, hasSorcerers, hasMessengers, resultFromCounts } from '../derived';
   import { Check, X, Minus, Plus } from 'lucide-svelte';
   import ToolsModal from './ToolsModal.svelte';
 
@@ -50,14 +50,12 @@
     }
   });
 
-  // Result preview
+  // Result preview (shares deriveQuestResult via resultFromCounts, incl. quest-5 message backup)
   let previewResult = $derived.by(() => {
     if (!majorityApproved) return null;
-    const fails = failCount + evilMsgCount;
-    const threshold = failsRequired(players.length, currentQuest.quest.quest_number);
-    let result: 'success' | 'fail' = fails >= threshold ? 'fail' : 'success';
-    if (magicCount % 2 === 1) result = result === 'success' ? 'fail' : 'success';
-    return result;
+    return resultFromCounts(gameState, currentQuest.quest.quest_number, {
+      success: successCount, fail: failCount, magic: magicCount, good: goodMsgCount, evil: evilMsgCount,
+    });
   });
 
   async function setKing(playerId: string) {

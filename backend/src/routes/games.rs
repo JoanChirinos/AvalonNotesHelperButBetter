@@ -783,18 +783,30 @@ pub async fn create_assassination_attempt(
 ) -> ApiResult<impl IntoResponse> {
     let mut conn = get_conn(&state.db)?;
 
-    diesel::insert_into(schema::assassination_attempts::table)
-        .values(&NewAssassinationAttempt {
-            id: new_id(),
-            game_id: game_id.clone(),
-            phase: req.phase,
-            sniper_player_id: req.sniper_player_id,
-            snipe_type: req.snipe_type,
-            target_player_ids: serde_json::to_string(&req.target_player_ids).unwrap(),
-            correct: if req.correct { 1 } else { 0 },
-        })
-        .execute(&mut conn)
-        .map_err(db_err)?;
+    // Overwrite any existing attempt for this (game, phase) so a mis-recorded
+    // assassination can be corrected (the table has UNIQUE(game_id, phase)).
+    conn.transaction(|conn| {
+        diesel::delete(
+            schema::assassination_attempts::table
+                .filter(schema::assassination_attempts::game_id.eq(&game_id))
+                .filter(schema::assassination_attempts::phase.eq(req.phase)),
+        )
+        .execute(conn)?;
+
+        diesel::insert_into(schema::assassination_attempts::table)
+            .values(&NewAssassinationAttempt {
+                id: new_id(),
+                game_id: game_id.clone(),
+                phase: req.phase,
+                sniper_player_id: req.sniper_player_id,
+                snipe_type: req.snipe_type,
+                target_player_ids: serde_json::to_string(&req.target_player_ids).unwrap(),
+                correct: if req.correct { 1 } else { 0 },
+            })
+            .execute(conn)?;
+        Ok(())
+    })
+    .map_err(db_err)?;
 
     let game_state = broadcast(&state, &game_id).await?;
     Ok((StatusCode::CREATED, Json(game_state)))

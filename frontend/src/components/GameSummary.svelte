@@ -221,7 +221,7 @@
                   <span>Correct?</span>
                   <input type="checkbox" class="checkbox checkbox-sm" bind:checked={phase1Correct} />
                 </label>
-                <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(1)} disabled={!!phase1Attempt}>{phase1Attempt ? 'Saved' : 'Save'}</button>
+                <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(1)} disabled={!phase1Sniper || !phase1Target}>{phase1Attempt ? 'Update' : 'Save'}</button>
               </div>
             </div>
           {/if}
@@ -268,7 +268,7 @@
                 <span>Correct?</span>
                 <input type="checkbox" class="checkbox checkbox-sm" bind:checked={phase2Correct} />
               </label>
-              <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(2)} disabled={!!phase2Attempt}>{phase2Attempt ? 'Saved' : 'Save'}</button>
+              <button class="btn btn-xs btn-primary" onclick={() => saveAssassination(2)} disabled={!phase2Sniper || !phase2Target1 || (phase2Type === 'messengers' && !phase2Target2)}>{phase2Attempt ? 'Update' : 'Save'}</button>
             </div>
           </div>
         </div>

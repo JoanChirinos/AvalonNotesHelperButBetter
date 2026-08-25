@@ -111,7 +111,7 @@ async fn quest_fails_on_five_rejections() {
 }
 
 #[tokio::test]
-async fn assassination_attempt_unique_per_phase() {
+async fn assassination_attempt_overwrites_same_phase() {
     let server = test_server();
     let state = create_game_with_players(
         &server,
@@ -134,8 +134,8 @@ async fn assassination_attempt_unique_per_phase() {
         .await;
     assert_eq!(resp.status_code().as_u16(), 201);
 
-    // Duplicate fails
-    let resp = server.post(&format!("/api/games/{game_id}/assassination-attempts"))
+    // Re-recording the same phase overwrites (editable), not a unique-violation error.
+    let state = server.post(&format!("/api/games/{game_id}/assassination-attempts"))
         .json(&json!({
             "phase": 2,
             "sniper_player_id": p[3],
@@ -143,8 +143,14 @@ async fn assassination_attempt_unique_per_phase() {
             "target_player_ids": [p[1]],
             "correct": false,
         }))
-        .await;
-    assert_eq!(resp.status_code().as_u16(), 500);
+        .await.json::<serde_json::Value>();
+
+    // Exactly one phase-2 attempt remains, reflecting the corrected values.
+    let attempts = state["assassination_attempts"].as_array().unwrap();
+    let phase2: Vec<_> = attempts.iter().filter(|a| a["phase"] == 2).collect();
+    assert_eq!(phase2.len(), 1);
+    assert_eq!(phase2[0]["correct"], 0);
+    assert_eq!(phase2[0]["target_player_ids"], serde_json::to_string(&[p[1]]).unwrap());
 }
 
 #[tokio::test]

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { FullGameState } from '../types';
-  import { BASE_PATH } from '../api';
+  import { api, BASE_PATH } from '../api';
   import GameSetup from './GameSetup.svelte';
   import GameBoard from './GameBoard.svelte';
   import GameSummary from './GameSummary.svelte';
@@ -63,6 +63,13 @@
     }
 
     connect();
+
+    // REST fallback: show initial data even if the WebSocket is slow/unreachable.
+    // The socket remains the source of live updates once connected.
+    api.getGame(gameId)
+      .then((s) => { if (!destroyed && !gameState) gameState = s; })
+      .catch(() => {});
+
     return () => {
       destroyed = true;
       clearTimeout(reconnectTimeout);
