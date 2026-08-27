@@ -53,7 +53,7 @@
 </script>
 
 <div class="min-h-screen bg-base-200">
-  <div class="navbar bg-base-100 shadow-sm">
+  <div class="navbar bg-base-100 shadow-sm sticky top-0 z-40">
     <div class="flex-1">
       <button class="btn btn-ghost text-xl" onclick={() => navigate('#/')}><Swords size={20} /> Avalon Notes Helper</button>
     </div>
@@ -80,7 +80,7 @@
     </div>
   </div>
 
-  <div class="container mx-auto p-4">
+  <div class="mx-auto w-full max-w-[110rem] p-4">
     {#if gameId}
       <GamePage {gameId} onNavigate={navigate} />
     {:else if namespace}
