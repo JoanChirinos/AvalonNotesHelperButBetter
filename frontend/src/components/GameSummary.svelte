@@ -284,7 +284,7 @@
             {@const assignedPlayerId = roleAssignments.get(role.id)}
             {@const won = role.role && assignedPlayerId ? playerWon(role.role) : null}
             <div class="flex items-center gap-3">
-              <span class="text-sm font-medium w-40 badge" class:badge-success={teamForRole(role.role) === 'good'} class:badge-error={teamForRole(role.role) === 'evil'}>
+              <span class="text-sm font-medium w-48 shrink-0 h-auto min-h-6 py-1 whitespace-normal text-center leading-tight badge" class:badge-success={teamForRole(role.role) === 'good'} class:badge-error={teamForRole(role.role) === 'evil'}>
                 {ROLE_DISPLAY_NAMES[role.role]}
               </span>
               <select
