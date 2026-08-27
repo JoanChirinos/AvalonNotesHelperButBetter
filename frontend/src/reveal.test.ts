@@ -24,7 +24,7 @@ describe('buildRevealScript', () => {
 
   it('Mordred is excluded from the thumb-extend for Merlin', () => {
     const s = joined(['merlin', 'mordred', 'minion_of_mordred']);
-    expect(s).toMatch(/Minions of Mordred, except Mordred, extend your thumb so Merlin/);
+    expect(s).toMatch(/Minions of Mordred, except Mordred represented by the Trickster card, extend your thumb so Merlin/);
   });
 
   it('Oberon is excluded from evil-sees-evil but NOT from Merlin', () => {
@@ -36,7 +36,7 @@ describe('buildRevealScript', () => {
 
   it('Percival sees Merlin, and Morgana too when present', () => {
     const withMorgana = joined(['merlin', 'percival', 'morgana', 'minion_of_mordred']);
-    expect(withMorgana).toMatch(/Merlin and Morgana, extend your thumb so Percival/);
+    expect(withMorgana).toMatch(/Merlin and Morgana represented by the Assassin card, extend your thumb so Percival/);
     expect(withMorgana).toMatch(/Percival, open your eyes and see Merlin and Morgana/);
 
     const noMorgana = joined(['merlin', 'percival', 'minion_of_mordred']);

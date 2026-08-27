@@ -83,7 +83,7 @@ const PARTS: RevealPart[] = [
     lines: (c) => {
       const extendSubject = subject(
         'Minions of Mordred',
-        c.has('mordred') && ', except Mordred',
+        c.has('mordred') && ', except Mordred represented by the Trickster card',
         c.has('untrustworthy_servant') && ', and the Untrustworthy Servant',
       );
       return [
@@ -97,7 +97,7 @@ const PARTS: RevealPart[] = [
     id: 'percival',
     applies: (c) => c.has('percival'),
     lines: (c) => {
-      const subj = subject('Merlin', c.has('morgana') && ' and Morgana');
+      const subj = subject('Merlin', c.has('morgana') && ' and Morgana represented by the Assassin card');
       return [
         { text: `${subj}, extend your thumb so Percival may know of you.`, pause: 'short' },
         { text: `Percival, open your eyes and see ${subj}.`, pause: 'long' },
