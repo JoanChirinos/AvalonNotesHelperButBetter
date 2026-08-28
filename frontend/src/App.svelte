@@ -4,7 +4,8 @@
   import GamePage from './components/GamePage.svelte';
   import Landing from './components/Landing.svelte';
   import RoundTimer from './components/RoundTimer.svelte';
-  import { Moon, Sun, Swords, RefreshCw } from 'lucide-svelte';
+  import { api } from './api';
+  import { Moon, Sun, Swords, RefreshCw, RotateCcw, Settings, X } from 'lucide-svelte';
 
   let isDark = $state(
     localStorage.getItem('theme')
@@ -46,6 +47,34 @@
     navigate('#/');
   }
 
+  let showSettings = $state(false);
+
+  // "Again!": create a fresh game duplicating the current one's players, roles, and
+  // modules (same namespace). Does NOT start it — lands on the setup screen.
+  let creatingAgain = $state(false);
+  let againError = $state('');
+  async function playAgain() {
+    if (!gameId || creatingAgain) return;
+    creatingAgain = true;
+    againError = '';
+    try {
+      const g = await api.getGame(gameId);
+      const nameById = new Map(g.known_players.map((kp) => [kp.id, kp.name]));
+      const player_names = g.players
+        .map((p) => nameById.get(p.known_player_id))
+        .filter((n): n is string => !!n);
+      const roles = g.roles.map((r) => r.role);
+      const modules = g.modules.map((m) => m.module);
+      const created = await api.createGame({ player_names, roles, modules, namespace: g.game.namespace });
+      showSettings = false;
+      navigate(`#/game/${created.game.id}`);
+    } catch (e) {
+      againError = `Couldn't create the game: ${String(e)}`;
+    } finally {
+      creatingAgain = false;
+    }
+  }
+
   $effect(() => {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
@@ -78,6 +107,13 @@
         <span class="swap-off"><Sun size={18} /></span>
       </label>
     </div>
+    {#if gameId}
+      <div class="flex-none pr-2">
+        <button class="btn btn-ghost btn-sm btn-square" onclick={() => showSettings = true} title="Settings" aria-label="Settings">
+          <Settings size={18} />
+        </button>
+      </div>
+    {/if}
   </div>
 
   <div class="mx-auto w-full max-w-[110rem] p-4">
@@ -89,4 +125,25 @@
       <Landing onSelect={selectNamespace} />
     {/if}
   </div>
+
+  {#if showSettings}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onclick={() => showSettings = false}>
+      <div class="card bg-base-100 shadow-xl w-full max-w-sm" role="dialog" onclick={(e) => e.stopPropagation()}>
+        <div class="card-body gap-4">
+          <div class="flex items-center justify-between">
+            <h3 class="card-title">Settings</h3>
+            <button class="btn btn-ghost btn-sm btn-square" onclick={() => showSettings = false} aria-label="Close"><X size={18} /></button>
+          </div>
+          {#if gameId}
+            <button class="btn btn-primary gap-2 w-full" onclick={playAgain} disabled={creatingAgain}>
+              <RotateCcw size={16} /> Again!
+            </button>
+            {#if againError}
+              <p class="text-error text-xs">{againError}</p>
+            {/if}
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>

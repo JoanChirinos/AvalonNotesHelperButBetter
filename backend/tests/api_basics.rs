@@ -151,3 +151,19 @@ async fn lady_of_the_lake_creates_holder_chain() {
     assert_eq!(holders.len(), 1);
     assert_eq!(holders[0]["player_id"], players[1]["id"]);
 }
+
+#[tokio::test]
+async fn create_game_reuses_existing_roster_names() {
+    let server = test_server();
+    create_game_with_players(&server, &["Sam", "Alex"], &["merlin", "assassin"]).await;
+
+    // A second game reusing a roster name must succeed (shared namespace roster),
+    // not hit a UNIQUE(namespace, name) violation. This backs the "play again" flow.
+    let state = create_game_with_players(&server, &["Sam", "Kai"], &["merlin", "assassin"]).await;
+    assert_eq!(state["players"].as_array().unwrap().len(), 2);
+
+    // "Sam" exists once in the roster, shared across both games.
+    let roster = server.get("/api/known-players?namespace=SGW").await.json::<serde_json::Value>();
+    let sams = roster.as_array().unwrap().iter().filter(|p| p["name"] == "Sam").count();
+    assert_eq!(sams, 1);
+}

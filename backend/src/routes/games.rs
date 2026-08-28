@@ -53,14 +53,27 @@ pub async fn create_game(
             .execute(conn)?;
 
         for (i, name) in req.player_names.iter().enumerate() {
-            let kp_id = new_id();
-            diesel::insert_into(schema::known_players::table)
-                .values(&NewKnownPlayer {
-                    id: kp_id.clone(),
-                    name: name.clone(),
-                    namespace: namespace.clone(),
-                })
-                .execute(conn)?;
+            // Reuse an existing roster entry for this (namespace, name), else create
+            // one. The roster is shared within a namespace, so re-submitting known
+            // names (e.g. the "play again" duplicate) must not violate the unique key.
+            let existing: Option<KnownPlayer> = schema::known_players::table
+                .filter(schema::known_players::namespace.eq(&namespace))
+                .filter(schema::known_players::name.eq(name))
+                .first(conn)
+                .optional()?;
+            let kp_id = if let Some(kp) = existing {
+                kp.id
+            } else {
+                let id = new_id();
+                diesel::insert_into(schema::known_players::table)
+                    .values(&NewKnownPlayer {
+                        id: id.clone(),
+                        name: name.clone(),
+                        namespace: namespace.clone(),
+                    })
+                    .execute(conn)?;
+                id
+            };
 
             diesel::insert_into(schema::players::table)
                 .values(&NewPlayer {
