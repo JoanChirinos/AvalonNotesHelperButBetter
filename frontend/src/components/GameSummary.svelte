@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from '../api';
   import type { FullGameState, Role, SnipeType } from '../types';
-  import { deriveQuestResult, playerNameById, teamForRole, totalGoodMessages, totalEvilMessages } from '../derived';
+  import { deriveQuestResult, deriveGameResult, playerNameById, teamForRole, totalGoodMessages, totalEvilMessages } from '../derived';
   import { ROLE_DISPLAY_NAMES, GOOD_ROLES, EVIL_ROLES } from '../constants';
   import QuestTrack from './QuestTrack.svelte';
   import QuestCard from './QuestCard.svelte';
@@ -33,14 +33,8 @@
   );
   let assassinationNeeded = $derived(succeededQuests >= 3);
 
-  // Derive game result
-  let gameResult = $derived.by(() => {
-    if (failedQuests >= 3) return 'evil';
-    if (!assassinationNeeded) return null;
-    const phase2 = attempts.find(a => a.phase === 2);
-    if (!phase2) return null;
-    return phase2.correct ? 'evil' : 'good';
-  });
+  // Derive game result (shared with the stats dashboard)
+  let gameResult = $derived(deriveGameResult(gameState));
 
   // Check if untrustworthy servant is in the game
   let hasUntrustworthyServant = $derived(

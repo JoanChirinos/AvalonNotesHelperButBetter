@@ -278,6 +278,30 @@ pub async fn delete_game(
 
 // ── Players ──
 
+/// Full state of every finished game in a namespace, for the stats dashboard.
+/// One call so the frontend can aggregate with its existing derivation logic.
+pub async fn list_full_games(
+    State(state): State<AppState>,
+    Query(q): Query<NamespaceQuery>,
+) -> ApiResult<impl IntoResponse> {
+    let mut conn = get_conn(&state.db)?;
+    let game_ids: Vec<String> = schema::games::table
+        .filter(schema::games::deleted_at.is_null())
+        .filter(schema::games::finished_at.is_not_null())
+        .filter(schema::games::namespace.eq(&q.namespace))
+        .order(schema::games::created_at.asc())
+        .select(schema::games::id)
+        .load(&mut conn)
+        .map_err(db_err)?;
+    drop(conn);
+
+    let mut out = Vec::with_capacity(game_ids.len());
+    for id in game_ids {
+        out.push(queries::load_full_game_state(&state.db, &id).map_err(db_err)?);
+    }
+    Ok(Json(out))
+}
+
 pub async fn list_namespaces(
     State(state): State<AppState>,
 ) -> ApiResult<impl IntoResponse> {

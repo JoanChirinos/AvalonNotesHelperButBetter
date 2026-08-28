@@ -70,6 +70,29 @@ export function resultFromCounts(
   return deriveQuestResult(questForCalc, state.players.length, messageTotals);
 }
 
+/**
+ * Overall game result: 'evil' if 3 quests failed; 'good' if 3 succeeded and the
+ * assassination missed; 'evil' if the phase-2 snipe was correct; null while
+ * undecided (fewer than 3 either way, or 3 successes with no snipe recorded yet).
+ * Single source of truth for "who won" — used by the summary and the stats.
+ */
+export function deriveGameResult(state: FullGameState): 'good' | 'evil' | null {
+  const playerCount = state.players.length;
+  const msgTotals = { good: totalGoodMessages(state), evil: totalEvilMessages(state) };
+  let failed = 0;
+  let succeeded = 0;
+  for (const q of state.quests) {
+    const r = deriveQuestResult(q.quest, playerCount, q.quest.quest_number === 5 ? msgTotals : undefined);
+    if (r === 'fail') failed++;
+    else if (r === 'success') succeeded++;
+  }
+  if (failed >= 3) return 'evil';
+  if (succeeded < 3) return null;
+  const phase2 = state.assassination_attempts.find((a) => a.phase === 2);
+  if (!phase2) return null;
+  return phase2.correct === 1 ? 'evil' : 'good';
+}
+
 export function currentQuestState(state: FullGameState): QuestState | null {
   return state.quests.find(q => q.quest.quest_number === state.game.current_quest) ?? null;
 }

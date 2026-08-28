@@ -122,3 +122,28 @@ async fn create_defaults_to_sgw_when_omitted() {
     let state = server.post("/api/games").json(&body).await.json::<Value>();
     assert_eq!(state["game"]["namespace"], "SGW");
 }
+
+/// /full-games returns full state of only finished, non-deleted games in the namespace.
+#[tokio::test]
+async fn full_games_returns_only_finished_in_namespace() {
+    let server = test_server();
+
+    let g1 = create_game_in_ns(&server, "alpha", &["A"]).await;
+    let id1 = g1["game"]["id"].as_str().unwrap().to_string();
+    server.patch(&format!("/api/games/{id1}"))
+        .json(&json!({ "finished_at": "2026-01-01T00:00:00Z" })).await;
+
+    // Unfinished game in the same namespace (should be excluded).
+    create_game_in_ns(&server, "alpha", &["B"]).await;
+
+    // Finished game in a different namespace (should be excluded).
+    let g3 = create_game_in_ns(&server, "beta", &["C"]).await;
+    let id3 = g3["game"]["id"].as_str().unwrap().to_string();
+    server.patch(&format!("/api/games/{id3}"))
+        .json(&json!({ "finished_at": "2026-01-01T00:00:00Z" })).await;
+
+    let full = server.get("/api/full-games?namespace=alpha").await.json::<Value>();
+    let arr = full.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["game"]["id"], id1);
+}

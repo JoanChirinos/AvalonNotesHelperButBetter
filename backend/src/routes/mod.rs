@@ -16,6 +16,8 @@ pub fn api_routes() -> Router<AppState> {
         .route("/games/{game_id}", axum::routing::delete(games::delete_game))
         // Namespaces (distinct groups, for the landing picker)
         .route("/namespaces", get(games::list_namespaces))
+        // Full state of finished games in a namespace (stats dashboard)
+        .route("/full-games", get(games::list_full_games))
         // Known players (distinct names across all games)
         .route("/players", get(games::list_known_players))
         // Known players (global roster)

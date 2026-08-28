@@ -21,6 +21,10 @@ export const api = {
   // Namespaces
   listNamespaces: () => request<string[]>('GET', '/namespaces'),
 
+  // Stats: full state of every finished game in a namespace
+  listFullGames: (namespace: string) =>
+    request<FullGameState[]>('GET', `/full-games?namespace=${encodeURIComponent(namespace)}`),
+
   // Games
   listGames: (namespace: string) =>
     request<GameSummary[]>('GET', `/games?namespace=${encodeURIComponent(namespace)}`),
