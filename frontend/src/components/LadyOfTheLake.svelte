@@ -3,7 +3,7 @@
   import { api } from '../api';
   import type { FullGameState, ClaimedAffiliation } from '../types';
   import { playerNameById } from '../derived';
-  import { X, Play, Pause, RotateCcw, Eye, ArrowBigRight } from 'lucide-svelte';
+  import { X, Play, Pause, RotateCcw, Eye, ArrowBigRight, Grip } from 'lucide-svelte';
 
   interface Props {
     gameState: FullGameState;
@@ -127,6 +127,35 @@
     `${Math.floor(timerRemaining / 60)}:${String(timerRemaining % 60).padStart(2, '0')}`
   );
 
+  // Draggable popup (grab by the title). Offset from the centered position.
+  let drag = $state({ x: 0, y: 0 });
+  let dragStart = { px: 0, py: 0, ox: 0, oy: 0 };
+
+  function onDrag(e: PointerEvent) {
+    drag = { x: dragStart.ox + (e.clientX - dragStart.px), y: dragStart.oy + (e.clientY - dragStart.py) };
+  }
+  function endDrag() {
+    window.removeEventListener('pointermove', onDrag);
+    window.removeEventListener('pointerup', endDrag);
+  }
+  function startDrag(e: PointerEvent) {
+    dragStart = { px: e.clientX, py: e.clientY, ox: drag.x, oy: drag.y };
+    window.addEventListener('pointermove', onDrag);
+    window.addEventListener('pointerup', endDrag);
+  }
+
+  // Reset to center each time the popup opens.
+  $effect(() => { if (open) drag = { x: 0, y: 0 }; });
+
+  // Recenter on window resize / zoom (zoom fires a resize) so it can't end up off-screen.
+  $effect(() => {
+    const recenter = () => { drag = { x: 0, y: 0 }; };
+    window.addEventListener('resize', recenter);
+    return () => window.removeEventListener('resize', recenter);
+  });
+
+  onDestroy(endDrag);
+
   async function submit() {
     if (!targetId || !currentQuestId) return;
     try {
@@ -169,10 +198,13 @@
   <div class="fixed inset-0 bg-black/50 z-40" onclick={() => open = false}></div>
 
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="card bg-base-100 shadow-xl w-full max-w-md">
+    <div class="card bg-base-100 shadow-xl w-full max-w-md" style="transform: translate({drag.x}px, {drag.y}px)">
       <div class="card-body p-4">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="card-title text-base">Lady of the Lake</h3>
+          <div class="flex items-center gap-1.5 cursor-move select-none touch-none" onpointerdown={startDrag}>
+            <Grip size={16} class="text-base-content/40" />
+            <h3 class="card-title text-base">Lady of the Lake</h3>
+          </div>
           <div class="flex items-center gap-2">
             <!-- Timer -->
             <span class="font-mono text-sm" class:text-error={timerRemaining <= 0}>{timerDisplay}</span>
