@@ -86,7 +86,10 @@
 
 <div class="flex items-center justify-between mb-6">
   <h2 class="text-2xl font-bold">Games</h2>
-  <button class="btn btn-primary" onclick={createGame}>+ New Game</button>
+  <div class="flex gap-2">
+    <button class="btn btn-ghost" onclick={() => onNavigate('#/stats')}>Stats</button>
+    <button class="btn btn-primary" onclick={createGame}>+ New Game</button>
+  </div>
 </div>
 
 {#if error}

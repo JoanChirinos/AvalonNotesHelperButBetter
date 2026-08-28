@@ -3,6 +3,7 @@
   import Home from './components/Home.svelte';
   import GamePage from './components/GamePage.svelte';
   import Landing from './components/Landing.svelte';
+  import StatsPage from './components/StatsPage.svelte';
   import RoundTimer from './components/RoundTimer.svelte';
   import { api } from './api';
   import { Moon, Sun, Swords, RefreshCw, RotateCcw, Settings, X } from 'lucide-svelte';
@@ -119,6 +120,8 @@
   <div class="mx-auto w-full max-w-[110rem] p-4">
     {#if gameId}
       <GamePage {gameId} onNavigate={navigate} />
+    {:else if route.startsWith('#/stats') && namespace}
+      <StatsPage {namespace} onNavigate={navigate} />
     {:else if namespace}
       <Home {namespace} onNavigate={navigate} />
     {:else}

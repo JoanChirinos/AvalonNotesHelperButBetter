@@ -3,21 +3,22 @@ import { deriveGameResult, deriveQuestResult, teamForRole, totalGoodMessages, to
 import { ROLE_DISPLAY_NAMES } from './constants';
 
 // ── Facts layer ──────────────────────────────────────────────────────────────
-// A normalized, reusable substrate computed once from finished game states. Stat
-// blocks (the "questions") are pure functions over Facts. Add fields here as new
-// kinds of questions need them (e.g. votes, leaders) — existing blocks are unaffected.
+// Normalized substrate computed once from finished game states. Blocks (the
+// "questions") are pure functions over Facts. Add fields here as new questions
+// need them; existing blocks are unaffected.
 
 export interface Participation {
   knownPlayerId: string;
   name: string;
   role: Role | null;
   team: Team | null;
-  won: boolean | null; // null when result or team is unknown
+  won: boolean | null;
 }
 
 export interface AssassinationFact {
   sniperKnownId: string | null;
   sniperName: string;
+  targetKnownIds: string[];
   snipeType: string; // 'merlin' | 'messengers' | 'untrustworthy_servant'
   correct: boolean;
 }
@@ -68,9 +69,19 @@ export function buildFacts(games: FullGameState[]): Facts {
 
     const assassinations: AssassinationFact[] = g.assassination_attempts.map((a) => {
       const sniperKnownId = knownIdByPlayerId.get(a.sniper_player_id) ?? null;
+      let targetPlayerIds: string[] = [];
+      try {
+        targetPlayerIds = JSON.parse(a.target_player_ids) as string[];
+      } catch {
+        targetPlayerIds = [];
+      }
+      const targetKnownIds = targetPlayerIds
+        .map((pid) => knownIdByPlayerId.get(pid))
+        .filter((k): k is string => !!k);
       return {
         sniperKnownId,
         sniperName: sniperKnownId ? (nameByKnownId.get(sniperKnownId) ?? '???') : '???',
+        targetKnownIds,
         snipeType: a.snipe_type,
         correct: a.correct === 1,
       };
@@ -94,11 +105,7 @@ export function buildFacts(games: FullGameState[]): Facts {
   return { roster, games: gameFacts };
 }
 
-// ── Widgets & blocks ─────────────────────────────────────────────────────────
-// A stat block declares a section + a compute that returns a WidgetSpec (a tagged
-// union of reusable display shapes). The renderer maps `kind` → component, so a new
-// question just picks a widget and supplies data — display is automatic.
-
+// ── Widgets ──────────────────────────────────────────────────────────────────
 export type WidgetSpec =
   | { kind: 'kpis'; items: { label: string; value: string }[] }
   | { kind: 'bars'; segments: { label: string; value: number; tone: 'good' | 'evil' | 'neutral' }[] }
@@ -110,21 +117,36 @@ export interface StatResult {
   note?: string;
 }
 
-export interface StatBlock {
+// Global blocks answer whole-namespace questions; player blocks answer questions
+// about one player. Add a block to the matching registry and it renders itself.
+export interface GlobalBlock {
   id: string;
   title: string;
-  section: 'group' | 'players';
   compute: (facts: Facts) => StatResult;
+}
+export interface PlayerBlock {
+  id: string;
+  title: string;
+  compute: (facts: Facts, knownPlayerId: string) => StatResult;
 }
 
 const pct = (n: number, d: number): string => (d ? `${Math.round((n / d) * 100)}%` : '—');
-
 const MIN_GAMES = 3;
 
-const overview: StatBlock = {
+// Helper: this player's participation in each game they were in.
+function playerGames(facts: Facts, pid: string): { g: GameFact; p: Participation }[] {
+  const out: { g: GameFact; p: Participation }[] = [];
+  for (const g of facts.games) {
+    const p = g.participations.find((x) => x.knownPlayerId === pid);
+    if (p) out.push({ g, p });
+  }
+  return out;
+}
+
+// ── Global blocks ──────────────────────────────────────────────────────────
+const overview: GlobalBlock = {
   id: 'overview',
   title: 'Overview',
-  section: 'group',
   compute: (f) => {
     const total = f.games.length;
     const decided = f.games.filter((g) => g.result);
@@ -135,7 +157,7 @@ const overview: StatBlock = {
       view: {
         kind: 'kpis',
         items: [
-          { label: 'Games', value: String(total) },
+          { label: 'Games played', value: String(total) },
           { label: 'Good win rate', value: pct(good, decided.length) },
           { label: 'Evil win rate', value: pct(evil, decided.length) },
           { label: 'Avg quests / game', value: avgQuests ? avgQuests.toFixed(1) : '—' },
@@ -146,30 +168,9 @@ const overview: StatBlock = {
   },
 };
 
-const goodVsEvil: StatBlock = {
-  id: 'good-vs-evil',
-  title: 'Good vs Evil',
-  section: 'group',
-  compute: (f) => {
-    const decided = f.games.filter((g) => g.result);
-    const good = decided.filter((g) => g.result === 'good').length;
-    const evil = decided.filter((g) => g.result === 'evil').length;
-    return {
-      view: {
-        kind: 'bars',
-        segments: [
-          { label: 'Good', value: good, tone: 'good' },
-          { label: 'Evil', value: evil, tone: 'evil' },
-        ],
-      },
-    };
-  },
-};
-
-const winRates: StatBlock = {
+const winRateLeaderboard: GlobalBlock = {
   id: 'win-rates',
   title: 'Win rate',
-  section: 'players',
   compute: (f) => {
     const agg = new Map<string, { name: string; games: number; wins: number }>();
     for (const g of f.games) {
@@ -189,15 +190,13 @@ const winRates: StatBlock = {
   },
 };
 
-const snipeAccuracy: StatBlock = {
+const snipeAccuracyLeaderboard: GlobalBlock = {
   id: 'snipe-accuracy',
   title: 'Assassination accuracy',
-  section: 'players',
   compute: (f) => {
     const agg = new Map<string, { name: string; snipes: number; correct: number }>();
     for (const g of f.games) {
       for (const a of g.assassinations) {
-        // Phase-2 kills only (guessing Merlin / the Messengers).
         if (a.snipeType !== 'merlin' && a.snipeType !== 'messengers') continue;
         if (!a.sniperKnownId) continue;
         const e = agg.get(a.sniperKnownId) ?? { name: a.sniperName, snipes: 0, correct: 0 };
@@ -213,36 +212,77 @@ const snipeAccuracy: StatBlock = {
   },
 };
 
-const rolePerformance: StatBlock = {
-  id: 'role-performance',
-  title: 'Role performance',
-  section: 'players',
-  compute: (f) => {
-    const agg = new Map<string, { name: string; role: Role; times: number; wins: number }>();
-    for (const g of f.games) {
-      for (const p of g.participations) {
-        if (!p.role) continue;
-        const key = `${p.knownPlayerId}|${p.role}`;
-        const e = agg.get(key) ?? { name: p.name, role: p.role, times: 0, wins: 0 };
-        e.times++;
-        if (p.won) e.wins++;
-        agg.set(key, e);
-      }
-    }
-    const rows = [...agg.values()]
-      .sort((a, b) => a.name.localeCompare(b.name) || a.role.localeCompare(b.role))
-      .map((e) => ({
-        Player: e.name,
-        Role: ROLE_DISPLAY_NAMES[e.role],
-        Times: e.times,
-        Wins: e.wins,
-        'Win %': pct(e.wins, e.times),
-      }));
+export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, winRateLeaderboard, snipeAccuracyLeaderboard];
+
+// ── Player blocks ──────────────────────────────────────────────────────────
+const playerSummary: PlayerBlock = {
+  id: 'summary',
+  title: 'Summary',
+  compute: (f, pid) => {
+    const gs = playerGames(f, pid);
+    const scored = gs.filter(({ p }) => p.won !== null);
+    const wins = scored.filter(({ p }) => p.won).length;
+    const good = gs.filter(({ p }) => p.team === 'good').length;
+    const evil = gs.filter(({ p }) => p.team === 'evil').length;
+    return {
+      view: {
+        kind: 'kpis',
+        items: [
+          { label: 'Games', value: String(gs.length) },
+          { label: 'Win rate', value: pct(wins, scored.length) },
+          { label: 'Times Good', value: String(good) },
+          { label: 'Times Evil', value: String(evil) },
+        ],
+      },
+      note: scored.length < gs.length ? `${scored.length} of ${gs.length} scored` : undefined,
+    };
+  },
+};
+
+const playerByTeam: PlayerBlock = {
+  id: 'by-team',
+  title: 'By team',
+  compute: (f, pid) => {
+    const gs = playerGames(f, pid);
+    const row = (team: Team, label: string) => {
+      const inTeam = gs.filter(({ p }) => p.team === team && p.won !== null);
+      const wins = inTeam.filter(({ p }) => p.won).length;
+      return { Team: label, Games: inTeam.length, Wins: wins, 'Win %': pct(wins, inTeam.length) };
+    };
     return {
       view: {
         kind: 'table',
         columns: [
-          { key: 'Player', label: 'Player' },
+          { key: 'Team', label: 'Team' },
+          { key: 'Games', label: 'Games', align: 'right' },
+          { key: 'Wins', label: 'Wins', align: 'right' },
+          { key: 'Win %', label: 'Win %', align: 'right' },
+        ],
+        rows: [row('good', 'Good'), row('evil', 'Evil')],
+      },
+    };
+  },
+};
+
+const playerByRole: PlayerBlock = {
+  id: 'by-role',
+  title: 'By role',
+  compute: (f, pid) => {
+    const agg = new Map<Role, { times: number; wins: number }>();
+    for (const { p } of playerGames(f, pid)) {
+      if (!p.role) continue;
+      const e = agg.get(p.role) ?? { times: 0, wins: 0 };
+      e.times++;
+      if (p.won) e.wins++;
+      agg.set(p.role, e);
+    }
+    const rows = [...agg.entries()]
+      .sort((a, b) => b[1].times - a[1].times)
+      .map(([role, e]) => ({ Role: ROLE_DISPLAY_NAMES[role], Times: e.times, Wins: e.wins, 'Win %': pct(e.wins, e.times) }));
+    return {
+      view: {
+        kind: 'table',
+        columns: [
           { key: 'Role', label: 'Role' },
           { key: 'Times', label: 'Times', align: 'right' },
           { key: 'Wins', label: 'Wins', align: 'right' },
@@ -254,5 +294,40 @@ const rolePerformance: StatBlock = {
   },
 };
 
-/** The registry. Add a StatBlock here and it renders automatically. */
-export const STAT_BLOCKS: StatBlock[] = [overview, goodVsEvil, winRates, snipeAccuracy, rolePerformance];
+const SNIPE_ROLES: { role: Role; label: string; type: string }[] = [
+  { role: 'merlin', label: 'Merlin', type: 'merlin' },
+  { role: 'senior_messenger', label: 'Senior Messenger', type: 'messengers' },
+  { role: 'junior_messenger', label: 'Junior Messenger', type: 'messengers' },
+  { role: 'untrustworthy_servant', label: 'Untrustworthy Servant', type: 'untrustworthy_servant' },
+];
+
+const playerSniped: PlayerBlock = {
+  id: 'sniped',
+  title: 'How often you get caught',
+  compute: (f, pid) => {
+    const rows = [];
+    for (const sr of SNIPE_ROLES) {
+      const games = f.games.filter((g) => g.participations.some((p) => p.knownPlayerId === pid && p.role === sr.role));
+      if (games.length === 0) continue;
+      const caught = games.filter((g) =>
+        g.assassinations.some((a) => a.correct && a.snipeType === sr.type && a.targetKnownIds.includes(pid))
+      ).length;
+      rows.push({ Role: sr.label, Times: games.length, Caught: caught, Rate: pct(caught, games.length) });
+    }
+    return {
+      view: {
+        kind: 'table',
+        columns: [
+          { key: 'Role', label: 'Role' },
+          { key: 'Times', label: 'Times', align: 'right' },
+          { key: 'Caught', label: 'Caught', align: 'right' },
+          { key: 'Rate', label: 'Rate', align: 'right' },
+        ],
+        rows,
+      },
+      note: rows.length ? undefined : 'Never held a role that can be sniped',
+    };
+  },
+};
+
+export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped];

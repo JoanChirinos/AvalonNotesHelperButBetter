@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFacts, STAT_BLOCKS, type Facts, type GameFact, type Participation } from './stats';
+import { buildFacts, GLOBAL_BLOCKS, PLAYER_BLOCKS, type Facts, type GameFact, type Participation } from './stats';
 import { deriveGameResult } from './derived';
 import type { FullGameState, Role } from './types';
 
@@ -86,13 +86,18 @@ describe('buildFacts', () => {
 const P = (kid: string, name: string, role: Role | null, team: 'good' | 'evil' | null, won: boolean | null): Participation =>
   ({ knownPlayerId: kid, name, role, team, won });
 
-function game(result: 'good' | 'evil' | null, participations: Participation[], assassinations: GameFact['assassinations'] = []): GameFact {
+function game(
+  result: 'good' | 'evil' | null,
+  participations: Participation[],
+  assassinations: GameFact['assassinations'] = []
+): GameFact {
   return { gameId: 'g', result, createdAt: '', finishedAt: '', questsDecided: 3, participations, assassinations };
 }
 
-const block = (id: string) => STAT_BLOCKS.find((b) => b.id === id)!;
+const gblock = (id: string) => GLOBAL_BLOCKS.find((b) => b.id === id)!;
+const pblock = (id: string) => PLAYER_BLOCKS.find((b) => b.id === id)!;
 
-describe('win-rates block', () => {
+describe('global: win-rate leaderboard', () => {
   it('computes win % and applies the min-games filter', () => {
     const facts: Facts = {
       roster: [],
@@ -103,56 +108,74 @@ describe('win-rates block', () => {
         game('good', [P('k2', 'Bo', 'assassin', 'evil', false)]), // only 1 game -> filtered out
       ],
     };
-    const rows = (block('win-rates').compute(facts).view as any).rows;
+    const rows = (gblock('win-rates').compute(facts).view as any).rows;
     expect(rows).toHaveLength(1);
     expect(rows[0].label).toBe('Ann');
     expect(rows[0].display).toBe('67% (2/3)');
   });
 });
 
-describe('role-performance block', () => {
-  it('counts appearances and wins per (player, role)', () => {
+describe('global: snipe accuracy', () => {
+  it('aggregates phase-2 snipes per sniper', () => {
+    const facts: Facts = {
+      roster: [],
+      games: [
+        game('good', [], [{ sniperKnownId: 'k9', sniperName: 'Zed', targetKnownIds: [], snipeType: 'merlin', correct: false }]),
+        game('evil', [], [{ sniperKnownId: 'k9', sniperName: 'Zed', targetKnownIds: ['k1'], snipeType: 'merlin', correct: true }]),
+      ],
+    };
+    const rows = (gblock('snipe-accuracy').compute(facts).view as any).rows;
+    expect(rows[0].label).toBe('Zed');
+    expect(rows[0].display).toBe('50% (1/2)');
+  });
+});
+
+describe('global: overview', () => {
+  it('reports totals and win rates over decided games', () => {
+    const facts: Facts = { roster: [], games: [game('good', []), game('evil', []), game(null, [])] };
+    const res = gblock('overview').compute(facts);
+    const items = (res.view as any).items as { label: string; value: string }[];
+    expect(items.find((i) => i.label === 'Games played')!.value).toBe('3');
+    expect(items.find((i) => i.label === 'Good win rate')!.value).toBe('50%');
+    expect(res.note).toMatch(/2 of 3/);
+  });
+});
+
+describe('player: by-role', () => {
+  it('counts appearances and wins per role for the selected player', () => {
     const facts: Facts = {
       roster: [],
       games: [
         game('good', [P('k1', 'Ann', 'merlin', 'good', true)]),
         game('evil', [P('k1', 'Ann', 'merlin', 'good', false)]),
         game('evil', [P('k1', 'Ann', 'morgana', 'evil', true)]),
+        game('good', [P('k2', 'Bo', 'merlin', 'good', true)]), // other player, ignored
       ],
     };
-    const rows = (block('role-performance').compute(facts).view as any).rows as Record<string, string | number>[];
-    const merlinRow = rows.find((r) => r.Role === 'Merlin')!;
-    expect(merlinRow.Times).toBe(2);
-    expect(merlinRow.Wins).toBe(1);
-    expect(merlinRow['Win %']).toBe('50%');
+    const rows = (pblock('by-role').compute(facts, 'k1').view as any).rows as Record<string, string | number>[];
+    const merlin = rows.find((r) => r.Role === 'Merlin')!;
+    expect(merlin.Times).toBe(2);
+    expect(merlin.Wins).toBe(1);
+    expect(merlin['Win %']).toBe('50%');
+    expect(rows.find((r) => r.Role === 'Morgana')!.Times).toBe(1);
   });
 });
 
-describe('snipe-accuracy block', () => {
-  it('aggregates phase-2 snipes per sniper', () => {
+describe('player: sniped ("how often you get caught")', () => {
+  it('counts games as Merlin where the correct snipe targeted the player', () => {
     const facts: Facts = {
       roster: [],
       games: [
-        game('good', [], [{ sniperKnownId: 'k9', sniperName: 'Zed', snipeType: 'merlin', correct: false }]),
-        game('evil', [], [{ sniperKnownId: 'k9', sniperName: 'Zed', snipeType: 'merlin', correct: true }]),
+        // Ann is Merlin and is correctly sniped
+        game('evil', [P('k1', 'Ann', 'merlin', 'good', false)], [{ sniperKnownId: 'k9', sniperName: 'Z', targetKnownIds: ['k1'], snipeType: 'merlin', correct: true }]),
+        // Ann is Merlin and survives (wrong snipe)
+        game('good', [P('k1', 'Ann', 'merlin', 'good', true)], [{ sniperKnownId: 'k9', sniperName: 'Z', targetKnownIds: ['k2'], snipeType: 'merlin', correct: false }]),
       ],
     };
-    const rows = (block('snipe-accuracy').compute(facts).view as any).rows;
-    expect(rows[0].label).toBe('Zed');
-    expect(rows[0].display).toBe('50% (1/2)');
-  });
-});
-
-describe('overview block', () => {
-  it('reports totals and win rates over decided games', () => {
-    const facts: Facts = {
-      roster: [],
-      games: [game('good', []), game('evil', []), game(null, [])],
-    };
-    const res = block('overview').compute(facts);
-    const items = (res.view as any).items as { label: string; value: string }[];
-    expect(items.find((i) => i.label === 'Games')!.value).toBe('3');
-    expect(items.find((i) => i.label === 'Good win rate')!.value).toBe('50%');
-    expect(res.note).toMatch(/2 of 3/);
+    const rows = (pblock('sniped').compute(facts, 'k1').view as any).rows as Record<string, string | number>[];
+    const merlin = rows.find((r) => r.Role === 'Merlin')!;
+    expect(merlin.Times).toBe(2);
+    expect(merlin.Caught).toBe(1);
+    expect(merlin.Rate).toBe('50%');
   });
 });
