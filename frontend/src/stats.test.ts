@@ -230,3 +230,22 @@ describe('lady stats', () => {
     expect(items.find((i) => i.label === 'Lies')!.value).toBe('1');
   });
 });
+
+describe('win streaks', () => {
+  // Chronological via createdAt; won pattern for k1: W W L W
+  const g2 = (created: string, won: boolean): GameFact =>
+    ({ gameId: created, result: won ? 'good' : 'evil', createdAt: created, finishedAt: created, questsDecided: 3,
+       participations: [{ knownPlayerId: 'k1', name: 'Ann', role: 'merlin', team: 'good', won }], assassinations: [], ladyChecks: [] });
+  const facts: Facts = { roster: [], games: [g2('2026-01-01', true), g2('2026-01-02', true), g2('2026-01-03', false), g2('2026-01-04', true)] };
+
+  it('player longest and current streak', () => {
+    const items = (pblock('streaks').compute(facts, 'k1').view as any).items as { label: string; value: string }[];
+    expect(items.find((i) => i.label === 'Longest win streak')!.value).toBe('2');
+    expect(items.find((i) => i.label === 'Current streak')!.value).toBe('1');
+  });
+  it('global longest-streaks leaderboard', () => {
+    const rows = (gblock('longest-streaks').compute(facts).view as any).rows;
+    expect(rows[0].label).toBe('Ann');
+    expect(rows[0].display).toBe('2 in a row');
+  });
+});

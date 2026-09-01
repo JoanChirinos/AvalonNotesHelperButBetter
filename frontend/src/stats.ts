@@ -177,6 +177,24 @@ function playerGames(facts: Facts, pid: string): { g: GameFact; p: Participation
   return out;
 }
 
+// A player's decided win/loss outcomes in chronological order.
+function playerWonSequence(f: Facts, pid: string): boolean[] {
+  return playerGames(f, pid)
+    .filter(({ p }) => p.won !== null)
+    .sort((a, b) => gameDate(a.g).localeCompare(gameDate(b.g)))
+    .map(({ p }) => p.won as boolean);
+}
+function longestRun(seq: boolean[]): number {
+  let best = 0, cur = 0;
+  for (const x of seq) { cur = x ? cur + 1 : 0; best = Math.max(best, cur); }
+  return best;
+}
+function currentRun(seq: boolean[]): number {
+  let cur = 0;
+  for (let i = seq.length - 1; i >= 0 && seq[i]; i--) cur++;
+  return cur;
+}
+
 // ── Global blocks ──────────────────────────────────────────────────────────
 const overview: GlobalBlock = {
   id: 'overview',
@@ -342,7 +360,22 @@ const biggestLiars: GlobalBlock = {
   },
 };
 
-export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard, ladyTruth, biggestLiars];
+const longestStreaks: GlobalBlock = {
+  id: 'longest-streaks',
+  title: 'Longest win streaks',
+  compute: (f) => {
+    const names = new Map<string, string>();
+    for (const g of f.games) for (const p of g.participations) names.set(p.knownPlayerId, p.name);
+    const rows = [...names.keys()]
+      .map((id) => ({ label: names.get(id)!, value: longestRun(playerWonSequence(f, id)), display: '' }))
+      .filter((r) => r.value > 0)
+      .map((r) => ({ ...r, display: `${r.value} in a row` }))
+      .sort((a, b) => b.value - a.value);
+    return { view: { kind: 'leaderboard', rows } };
+  },
+};
+
+export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard, ladyTruth, biggestLiars, longestStreaks];
 
 // ── Player blocks ──────────────────────────────────────────────────────────
 const playerSummary: PlayerBlock = {
@@ -480,4 +513,21 @@ const playerLady: PlayerBlock = {
   },
 };
 
-export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped, playerLady];
+const playerStreaks: PlayerBlock = {
+  id: 'streaks',
+  title: 'Win streaks',
+  compute: (f, pid) => {
+    const seq = playerWonSequence(f, pid);
+    return {
+      view: {
+        kind: 'kpis',
+        items: [
+          { label: 'Longest win streak', value: String(longestRun(seq)) },
+          { label: 'Current streak', value: String(currentRun(seq)) },
+        ],
+      },
+    };
+  },
+};
+
+export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped, playerLady, playerStreaks];
