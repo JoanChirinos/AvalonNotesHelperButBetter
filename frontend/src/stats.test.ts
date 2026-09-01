@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFacts, GLOBAL_BLOCKS, PLAYER_BLOCKS, type Facts, type GameFact, type Participation } from './stats';
+import { buildFacts, GLOBAL_BLOCKS, PLAYER_BLOCKS, type Facts, type GameFact, type Participation, type LadyCheck } from './stats';
 import { deriveGameResult } from './derived';
 import type { FullGameState, Role } from './types';
 
@@ -89,9 +89,10 @@ const P = (kid: string, name: string, role: Role | null, team: 'good' | 'evil' |
 function game(
   result: 'good' | 'evil' | null,
   participations: Participation[],
-  assassinations: GameFact['assassinations'] = []
+  assassinations: GameFact['assassinations'] = [],
+  ladyChecks: LadyCheck[] = []
 ): GameFact {
-  return { gameId: 'g', result, createdAt: '', finishedAt: '', questsDecided: 3, participations, assassinations };
+  return { gameId: 'g', result, createdAt: '', finishedAt: '', questsDecided: 3, participations, assassinations, ladyChecks };
 }
 
 const gblock = (id: string) => GLOBAL_BLOCKS.find((b) => b.id === id)!;
@@ -194,5 +195,38 @@ describe('bucketDates', () => {
     const m = bucketDates(dates, 'month');
     expect(m.find((x) => x.key === '2026-06')!.count).toBe(3);
     expect(m.find((x) => x.key === '2026-07')!.count).toBe(1);
+  });
+});
+
+describe('lady stats', () => {
+  const lc = (id: string, name: string, team: 'good' | 'evil', claimed: 'good' | 'evil', targetTeam: 'good' | 'evil'): LadyCheck =>
+    ({ investigatorKnownId: id, investigatorName: name, investigatorTeam: team, claimed, targetActualTeam: targetTeam, truth: claimed === targetTeam });
+
+  const facts: Facts = {
+    roster: [],
+    games: [
+      game('good', [], [], [lc('k1', 'Liar', 'evil', 'good', 'evil')]),   // evil lies
+      game('good', [], [], [lc('k1', 'Liar', 'good', 'good', 'good')]),   // good truth
+      game('evil', [], [], [lc('k2', 'Honest', 'good', 'evil', 'evil')]), // good truth
+    ],
+  };
+
+  it('global lady truth/lie rates incl. evil lie rate', () => {
+    const items = (GLOBAL_BLOCKS.find((b) => b.id === 'lady-truth')!.compute(facts).view as any).items as { label: string; value: string }[];
+    expect(items.find((i) => i.label === 'Checks')!.value).toBe('3');
+    expect(items.find((i) => i.label === 'Lie rate')!.value).toBe('33%');
+    expect(items.find((i) => i.label === 'Evil lie rate')!.value).toBe('100%'); // 1 evil check, a lie
+  });
+
+  it('biggest-liars ranks by lie count', () => {
+    const rows = (GLOBAL_BLOCKS.find((b) => b.id === 'biggest-liars')!.compute(facts).view as any).rows;
+    expect(rows[0].label).toBe('Liar');
+    expect(rows[0].value).toBe(1);
+  });
+
+  it('per-player lady counts truths and lies', () => {
+    const items = (PLAYER_BLOCKS.find((b) => b.id === 'lady')!.compute(facts, 'k1').view as any).items as { label: string; value: string }[];
+    expect(items.find((i) => i.label === 'Times as Lady')!.value).toBe('2');
+    expect(items.find((i) => i.label === 'Lies')!.value).toBe('1');
   });
 });

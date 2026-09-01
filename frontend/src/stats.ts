@@ -23,6 +23,15 @@ export interface AssassinationFact {
   correct: boolean;
 }
 
+export interface LadyCheck {
+  investigatorKnownId: string | null;
+  investigatorName: string;
+  investigatorTeam: Team | null;
+  claimed: 'good' | 'evil';
+  targetActualTeam: Team | null;
+  truth: boolean | null; // claimed matches the target's real team; null if unknown
+}
+
 export interface GameFact {
   gameId: string;
   result: 'good' | 'evil' | null;
@@ -31,6 +40,7 @@ export interface GameFact {
   questsDecided: number;
   participations: Participation[];
   assassinations: AssassinationFact[];
+  ladyChecks: LadyCheck[];
 }
 
 export interface RosterEntry {
@@ -87,6 +97,27 @@ export function buildFacts(games: FullGameState[]): Facts {
       };
     });
 
+    const infoByPlayerId = new Map(
+      g.players.map((p) => {
+        const role = (p.role ?? null) as Role | null;
+        return [p.id, { knownId: p.known_player_id, name: nameByKnownId.get(p.known_player_id) ?? '???', team: role ? teamForRole(role) : null }];
+      })
+    );
+    const ladyChecks: LadyCheck[] = g.lady_investigations.map((inv) => {
+      const investigator = infoByPlayerId.get(inv.investigator_player_id);
+      const target = infoByPlayerId.get(inv.target_player_id);
+      const claimed = inv.claimed_affiliation as 'good' | 'evil';
+      const targetActualTeam = target?.team ?? null;
+      return {
+        investigatorKnownId: investigator?.knownId ?? null,
+        investigatorName: investigator?.name ?? '???',
+        investigatorTeam: investigator?.team ?? null,
+        claimed,
+        targetActualTeam,
+        truth: targetActualTeam ? claimed === targetActualTeam : null,
+      };
+    });
+
     return {
       gameId: g.game.id,
       result,
@@ -95,6 +126,7 @@ export function buildFacts(games: FullGameState[]): Facts {
       questsDecided,
       participations,
       assassinations,
+      ladyChecks,
     };
   });
 
@@ -266,7 +298,51 @@ const gamesOverTime: GlobalBlock = {
   compute: (f) => ({ view: { kind: 'timeseries', dates: f.games.map(gameDate) } }),
 };
 
-export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard];
+const ladyTruth: GlobalBlock = {
+  id: 'lady-truth',
+  title: 'Lady of the Lake',
+  compute: (f) => {
+    const checks = f.games.flatMap((g) => g.ladyChecks).filter((c) => c.truth !== null);
+    const truths = checks.filter((c) => c.truth).length;
+    const evil = checks.filter((c) => c.investigatorTeam === 'evil');
+    const evilLies = evil.filter((c) => !c.truth).length;
+    return {
+      view: {
+        kind: 'kpis',
+        items: [
+          { label: 'Checks', value: String(checks.length) },
+          { label: 'Truth rate', value: pct(truths, checks.length) },
+          { label: 'Lie rate', value: pct(checks.length - truths, checks.length) },
+          { label: 'Evil lie rate', value: pct(evilLies, evil.length) },
+        ],
+      },
+    };
+  },
+};
+
+const biggestLiars: GlobalBlock = {
+  id: 'biggest-liars',
+  title: 'Biggest liars (as Lady)',
+  compute: (f) => {
+    const agg = new Map<string, { name: string; lies: number; checks: number }>();
+    for (const g of f.games) {
+      for (const c of g.ladyChecks) {
+        if (c.truth === null || !c.investigatorKnownId) continue;
+        const e = agg.get(c.investigatorKnownId) ?? { name: c.investigatorName, lies: 0, checks: 0 };
+        e.checks++;
+        if (!c.truth) e.lies++;
+        agg.set(c.investigatorKnownId, e);
+      }
+    }
+    const rows = [...agg.values()]
+      .filter((e) => e.lies > 0)
+      .map((e) => ({ label: e.name, value: e.lies, display: `${e.lies} lie${e.lies === 1 ? '' : 's'} of ${e.checks}` }))
+      .sort((a, b) => b.value - a.value);
+    return { view: { kind: 'leaderboard', rows } };
+  },
+};
+
+export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard, ladyTruth, biggestLiars];
 
 // ── Player blocks ──────────────────────────────────────────────────────────
 const playerSummary: PlayerBlock = {
@@ -384,4 +460,24 @@ const playerSniped: PlayerBlock = {
   },
 };
 
-export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped];
+const playerLady: PlayerBlock = {
+  id: 'lady',
+  title: 'As Lady of the Lake',
+  compute: (f, pid) => {
+    const checks = f.games.flatMap((g) => g.ladyChecks).filter((c) => c.investigatorKnownId === pid && c.truth !== null);
+    const lies = checks.filter((c) => !c.truth).length;
+    return {
+      view: {
+        kind: 'kpis',
+        items: [
+          { label: 'Times as Lady', value: String(checks.length) },
+          { label: 'Truths', value: String(checks.length - lies) },
+          { label: 'Lies', value: String(lies) },
+          { label: 'Lie rate', value: pct(lies, checks.length) },
+        ],
+      },
+    };
+  },
+};
+
+export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped, playerLady];
