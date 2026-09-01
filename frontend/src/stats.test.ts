@@ -179,3 +179,20 @@ describe('player: sniped ("how often you get caught")', () => {
     expect(merlin.Rate).toBe('50%');
   });
 });
+
+import { bucketDates } from './stats';
+
+describe('bucketDates', () => {
+  const dates = ['2026-06-01T10:00:00Z', '2026-06-01T20:00:00Z', '2026-06-08T10:00:00Z', '2026-07-02T10:00:00Z'];
+  it('buckets by day', () => {
+    const b = bucketDates(dates, 'day');
+    expect(b.find((x) => x.key === '2026-06-01')!.count).toBe(2);
+    expect(b).toHaveLength(3);
+  });
+  it('buckets by week (Monday start) and month', () => {
+    expect(bucketDates(dates, 'week').find((x) => x.key === '2026-06-01')!.count).toBe(2); // Jun 1 2026 is a Monday
+    const m = bucketDates(dates, 'month');
+    expect(m.find((x) => x.key === '2026-06')!.count).toBe(3);
+    expect(m.find((x) => x.key === '2026-07')!.count).toBe(1);
+  });
+});

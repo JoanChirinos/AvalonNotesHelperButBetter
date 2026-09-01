@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { StatResult } from '../stats';
+  import TimeSeriesChart from './TimeSeriesChart.svelte';
 
   interface Props {
     title: string;
@@ -8,6 +9,7 @@
 
   let { title, result }: Props = $props();
   let view = $derived(result.view);
+  let hcMax = $derived(view.kind === 'heatcells' ? Math.max(1, ...view.cells.map((c) => c.value)) : 1);
 
   const toneClass: Record<string, string> = {
     good: 'bg-success',
@@ -109,6 +111,22 @@
           </table>
         </div>
       {/if}
+
+    {:else if view.kind === 'heatcells'}
+      <div class="flex gap-1">
+        {#each view.cells as c}
+          <div
+            class="flex-1 rounded-md px-1 py-2 text-center"
+            style:background-color={`color-mix(in oklab, var(--color-success) ${Math.round((c.value / hcMax) * 100)}%, var(--color-neutral))`}
+          >
+            <div class="text-xs font-semibold text-neutral-content">{c.label}</div>
+            <div class="text-sm font-bold tabular-nums text-neutral-content">{c.value}</div>
+          </div>
+        {/each}
+      </div>
+
+    {:else if view.kind === 'timeseries'}
+      <TimeSeriesChart dates={view.dates} />
     {/if}
   </div>
 </div>

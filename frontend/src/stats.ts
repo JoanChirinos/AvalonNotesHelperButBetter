@@ -110,7 +110,9 @@ export type WidgetSpec =
   | { kind: 'kpis'; items: { label: string; value: string }[] }
   | { kind: 'bars'; segments: { label: string; value: number; tone: 'good' | 'evil' | 'neutral' }[] }
   | { kind: 'leaderboard'; rows: { label: string; value: number; display: string }[] }
-  | { kind: 'table'; columns: { key: string; label: string; align?: 'left' | 'right' }[]; rows: Record<string, string | number>[] };
+  | { kind: 'table'; columns: { key: string; label: string; align?: 'left' | 'right' }[]; rows: Record<string, string | number>[] }
+  | { kind: 'heatcells'; cells: { label: string; value: number }[] }
+  | { kind: 'timeseries'; dates: string[] };
 
 export interface StatResult {
   view: WidgetSpec;
@@ -212,7 +214,59 @@ const snipeAccuracyLeaderboard: GlobalBlock = {
   },
 };
 
-export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, winRateLeaderboard, snipeAccuracyLeaderboard];
+// A game's date for time analysis (prefer when it finished).
+const gameDate = (g: GameFact): string => g.finishedAt ?? g.createdAt;
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+export type Bucket = 'day' | 'week' | 'month';
+
+/** Group ISO dates into ordered {label, count} buckets. Exported for the chart + tests. */
+export function bucketDates(dates: string[], bucket: Bucket): { key: string; label: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const iso of dates) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) continue;
+    let key: string;
+    if (bucket === 'day') {
+      key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    } else if (bucket === 'month') {
+      key = d.toISOString().slice(0, 7); // YYYY-MM
+    } else {
+      // ISO week start (Monday)
+      const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      const day = (t.getUTCDay() + 6) % 7; // 0 = Monday
+      t.setUTCDate(t.getUTCDate() - day);
+      key = t.toISOString().slice(0, 10);
+    }
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, count]) => ({ key, label: bucket === 'month' ? key : key, count }));
+}
+
+const dayOfWeek: GlobalBlock = {
+  id: 'day-of-week',
+  title: 'When we play',
+  compute: (f) => {
+    const counts = new Array(7).fill(0);
+    for (const g of f.games) {
+      const d = new Date(gameDate(g));
+      if (isNaN(d.getTime())) continue;
+      counts[(d.getUTCDay() + 6) % 7]++; // Monday-first
+    }
+    return { view: { kind: 'heatcells', cells: WEEKDAYS.map((label, i) => ({ label, value: counts[i] })) } };
+  },
+};
+
+const gamesOverTime: GlobalBlock = {
+  id: 'games-over-time',
+  title: 'Games over time',
+  compute: (f) => ({ view: { kind: 'timeseries', dates: f.games.map(gameDate) } }),
+};
+
+export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard];
 
 // ── Player blocks ──────────────────────────────────────────────────────────
 const playerSummary: PlayerBlock = {
