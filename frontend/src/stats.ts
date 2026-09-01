@@ -271,29 +271,61 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export type Bucket = 'day' | 'week' | 'month';
 
-/** Group ISO dates into ordered {label, count} buckets. Exported for the chart + tests. */
-export function bucketDates(dates: string[], bucket: Bucket): { key: string; label: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const iso of dates) {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) continue;
-    let key: string;
-    if (bucket === 'day') {
-      key = d.toISOString().slice(0, 10); // YYYY-MM-DD
-    } else if (bucket === 'month') {
-      key = d.toISOString().slice(0, 7); // YYYY-MM
-    } else {
-      // ISO week start (Monday)
-      const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-      const day = (t.getUTCDay() + 6) % 7; // 0 = Monday
-      t.setUTCDate(t.getUTCDate() - day);
-      key = t.toISOString().slice(0, 10);
-    }
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+function bucketStart(d: Date, bucket: Bucket): Date {
+  const u = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  if (bucket === 'month') return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+  if (bucket === 'week') {
+    const day = (u.getUTCDay() + 6) % 7; // 0 = Monday
+    u.setUTCDate(u.getUTCDate() - day);
   }
-  return [...counts.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([key, count]) => ({ key, label: bucket === 'month' ? key : key, count }));
+  return u;
+}
+function bucketNext(d: Date, bucket: Bucket): Date {
+  const u = new Date(d);
+  if (bucket === 'day') u.setUTCDate(u.getUTCDate() + 1);
+  else if (bucket === 'week') u.setUTCDate(u.getUTCDate() + 7);
+  else u.setUTCMonth(u.getUTCMonth() + 1);
+  return u;
+}
+const bucketKey = (d: Date, bucket: Bucket): string =>
+  bucket === 'month' ? d.toISOString().slice(0, 7) : d.toISOString().slice(0, 10);
+
+/**
+ * Group ISO dates into ordered {label, count} buckets, filling every bucket in the
+ * range (including 0-count gaps) so the time axis is continuous. Range defaults to
+ * the span of the data; pass one to cover a fixed window. Dates outside the range
+ * are ignored. Exported for the chart + tests.
+ */
+export function bucketDates(
+  dates: string[],
+  bucket: Bucket,
+  range?: { start: Date; end: Date }
+): { key: string; label: string; count: number }[] {
+  const valid = dates.map((d) => new Date(d)).filter((d) => !isNaN(d.getTime()));
+  const counts = new Map<string, number>();
+  for (const d of valid) {
+    const k = bucketKey(bucketStart(d, bucket), bucket);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+
+  let start: Date;
+  let end: Date;
+  if (range) {
+    start = bucketStart(range.start, bucket);
+    end = bucketStart(range.end, bucket);
+  } else {
+    if (valid.length === 0) return [];
+    const times = valid.map((d) => d.getTime());
+    start = bucketStart(new Date(Math.min(...times)), bucket);
+    end = bucketStart(new Date(Math.max(...times)), bucket);
+  }
+
+  const out: { key: string; label: string; count: number }[] = [];
+  for (let d = start; d.getTime() <= end.getTime(); d = bucketNext(d, bucket)) {
+    const k = bucketKey(d, bucket);
+    out.push({ key: k, label: k, count: counts.get(k) ?? 0 });
+  }
+  return out;
 }
 
 const dayOfWeek: GlobalBlock = {

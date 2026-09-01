@@ -185,16 +185,26 @@ import { bucketDates } from './stats';
 
 describe('bucketDates', () => {
   const dates = ['2026-06-01T10:00:00Z', '2026-06-01T20:00:00Z', '2026-06-08T10:00:00Z', '2026-07-02T10:00:00Z'];
-  it('buckets by day', () => {
+  it('buckets by day and fills 0-count gaps across the span', () => {
     const b = bucketDates(dates, 'day');
+    expect(b).toHaveLength(32); // Jun 1 .. Jul 2 inclusive
     expect(b.find((x) => x.key === '2026-06-01')!.count).toBe(2);
-    expect(b).toHaveLength(3);
+    expect(b.find((x) => x.key === '2026-06-02')!.count).toBe(0); // gap day present
   });
   it('buckets by week (Monday start) and month', () => {
-    expect(bucketDates(dates, 'week').find((x) => x.key === '2026-06-01')!.count).toBe(2); // Jun 1 2026 is a Monday
+    const w = bucketDates(dates, 'week');
+    expect(w.find((x) => x.key === '2026-06-01')!.count).toBe(2); // Jun 1 2026 is a Monday
+    expect(w).toHaveLength(5); // weeks of Jun1,8,15,22,29
     const m = bucketDates(dates, 'month');
+    expect(m).toHaveLength(2);
     expect(m.find((x) => x.key === '2026-06')!.count).toBe(3);
     expect(m.find((x) => x.key === '2026-07')!.count).toBe(1);
+  });
+  it('honors an explicit range, ignoring out-of-range dates', () => {
+    const b = bucketDates(dates, 'month', { start: new Date('2026-07-01'), end: new Date('2026-08-01') });
+    expect(b.map((x) => x.key)).toEqual(['2026-07', '2026-08']);
+    expect(b.find((x) => x.key === '2026-07')!.count).toBe(1); // June dates excluded
+    expect(b.find((x) => x.key === '2026-08')!.count).toBe(0);
   });
 });
 
