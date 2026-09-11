@@ -65,7 +65,7 @@
     </div>
   {/if}
 
-  <div class="flex-1 space-y-4">
+  <div class="flex-1 min-w-0 space-y-4">
     <!-- Sidebar toggle + reveal -->
     <div class="px-4 flex items-center justify-between">
       <button class="btn btn-ghost btn-xs" onclick={() => showSuspicions = !showSuspicions} title="Suspicions">
