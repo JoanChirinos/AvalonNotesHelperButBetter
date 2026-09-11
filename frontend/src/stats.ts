@@ -242,28 +242,6 @@ const winRateLeaderboard: GlobalBlock = {
   },
 };
 
-const snipeAccuracyLeaderboard: GlobalBlock = {
-  id: 'snipe-accuracy',
-  title: 'Assassination accuracy',
-  compute: (f) => {
-    const agg = new Map<string, { name: string; snipes: number; correct: number }>();
-    for (const g of f.games) {
-      for (const a of g.assassinations) {
-        if (a.snipeType !== 'merlin' && a.snipeType !== 'messengers') continue;
-        if (!a.sniperKnownId) continue;
-        const e = agg.get(a.sniperKnownId) ?? { name: a.sniperName, snipes: 0, correct: 0 };
-        e.snipes++;
-        if (a.correct) e.correct++;
-        agg.set(a.sniperKnownId, e);
-      }
-    }
-    const rows = [...agg.values()]
-      .map((e) => ({ label: e.name, value: e.snipes ? e.correct / e.snipes : 0, display: `${pct(e.correct, e.snipes)} (${e.correct}/${e.snipes})` }))
-      .sort((a, b) => b.value - a.value);
-    return { view: { kind: 'leaderboard', rows } };
-  },
-};
-
 // Snipe points: a successful snipe is a group effort. Every base-evil player scores
 // on a correct phase-1 (untrustworthy) or phase-2 (merlin/messenger) snipe. The
 // untrustworthy servant also scores on the phase-2 snipe iff they were sniped into
@@ -447,7 +425,7 @@ const longestStreaks: GlobalBlock = {
   },
 };
 
-export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard, snipePointsLeaderboard, ladyTruth, biggestLiars, longestStreaks];
+export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipePointsLeaderboard, ladyTruth, biggestLiars, longestStreaks];
 
 // ── Player blocks ──────────────────────────────────────────────────────────
 const playerSummary: PlayerBlock = {

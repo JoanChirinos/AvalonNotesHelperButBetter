@@ -116,21 +116,6 @@ describe('global: win-rate leaderboard', () => {
   });
 });
 
-describe('global: snipe accuracy', () => {
-  it('aggregates phase-2 snipes per sniper', () => {
-    const facts: Facts = {
-      roster: [],
-      games: [
-        game('good', [], [{ sniperKnownId: 'k9', sniperName: 'Zed', targetKnownIds: [], snipeType: 'merlin', correct: false }]),
-        game('evil', [], [{ sniperKnownId: 'k9', sniperName: 'Zed', targetKnownIds: ['k1'], snipeType: 'merlin', correct: true }]),
-      ],
-    };
-    const rows = (gblock('snipe-accuracy').compute(facts).view as any).rows;
-    expect(rows[0].label).toBe('Zed');
-    expect(rows[0].display).toBe('50% (1/2)');
-  });
-});
-
 describe('global: overview', () => {
   it('reports totals and win rates over decided games', () => {
     const facts: Facts = { roster: [], games: [game('good', []), game('evil', []), game(null, [])] };
