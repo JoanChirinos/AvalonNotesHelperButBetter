@@ -263,7 +263,7 @@ function snipePoints(g: GameFact): Map<string, number> {
 
 const snipePointsLeaderboard: GlobalBlock = {
   id: 'snipe-points',
-  title: 'Snipe points',
+  title: 'Assassination points',
   compute: (f) => {
     const agg = new Map<string, { name: string; points: number }>();
     for (const g of f.games) {
@@ -582,7 +582,7 @@ const playerStreaks: PlayerBlock = {
 
 const playerSnipePoints: PlayerBlock = {
   id: 'snipe-points',
-  title: 'Snipe points',
+  title: 'Assassination points',
   compute: (f, pid) => {
     let total = 0, best = 0, scoredGames = 0;
     for (const g of f.games) {
@@ -593,7 +593,7 @@ const playerSnipePoints: PlayerBlock = {
       view: {
         kind: 'kpis',
         items: [
-          { label: 'Snipe points', value: String(total) },
+          { label: 'Points', value: String(total) },
           { label: 'Games scored', value: String(scoredGames) },
           { label: 'Best game', value: String(best) },
         ],

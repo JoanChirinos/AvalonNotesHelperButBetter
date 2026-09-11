@@ -247,7 +247,7 @@ describe('snipe points', () => {
     expect(rows.find((r) => r.label === 'Ev1')!.value).toBe(2);
     expect(rows.find((r) => r.label === 'Serv')!.value).toBe(1);
     const items = (pblock('snipe-points').compute({ roster: [], games: [g] }, 'e1').view as any).items as { label: string; value: string }[];
-    expect(items.find((i) => i.label === 'Snipe points')!.value).toBe('2');
+    expect(items.find((i) => i.label === 'Points')!.value).toBe('2');
     expect(items.find((i) => i.label === 'Best game')!.value).toBe('2');
   });
 
