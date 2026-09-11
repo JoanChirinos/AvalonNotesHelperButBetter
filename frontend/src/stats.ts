@@ -264,6 +264,46 @@ const snipeAccuracyLeaderboard: GlobalBlock = {
   },
 };
 
+// Snipe points: a successful snipe is a group effort. Every base-evil player scores
+// on a correct phase-1 (untrustworthy) or phase-2 (merlin/messenger) snipe. The
+// untrustworthy servant also scores on the phase-2 snipe iff they were sniped into
+// evil in phase 1. So base-evil tops out at 2/game, the untrustworthy servant at 1.
+function snipePoints(g: GameFact): Map<string, number> {
+  const pts = new Map<string, number>();
+  const add = (id: string) => pts.set(id, (pts.get(id) ?? 0) + 1);
+  const phase1 = g.assassinations.some((a) => a.snipeType === 'untrustworthy_servant' && a.correct);
+  const phase2 = g.assassinations.some((a) => (a.snipeType === 'merlin' || a.snipeType === 'messengers') && a.correct);
+  const baseEvil = g.participations.filter((p) => p.team === 'evil');
+  const untrustworthy = g.participations.find((p) => p.role === 'untrustworthy_servant');
+  if (phase1) for (const p of baseEvil) add(p.knownPlayerId);
+  if (phase2) {
+    for (const p of baseEvil) add(p.knownPlayerId);
+    if (phase1 && untrustworthy) add(untrustworthy.knownPlayerId);
+  }
+  return pts;
+}
+
+const snipePointsLeaderboard: GlobalBlock = {
+  id: 'snipe-points',
+  title: 'Snipe points',
+  compute: (f) => {
+    const agg = new Map<string, { name: string; points: number }>();
+    for (const g of f.games) {
+      const names = new Map(g.participations.map((p) => [p.knownPlayerId, p.name]));
+      for (const [id, n] of snipePoints(g)) {
+        const e = agg.get(id) ?? { name: names.get(id) ?? '???', points: 0 };
+        e.points += n;
+        agg.set(id, e);
+      }
+    }
+    const rows = [...agg.values()]
+      .filter((e) => e.points > 0)
+      .map((e) => ({ label: e.name, value: e.points, display: `${e.points} pt${e.points === 1 ? '' : 's'}` }))
+      .sort((a, b) => b.value - a.value);
+    return { view: { kind: 'leaderboard', rows } };
+  },
+};
+
 // A game's date for time analysis (prefer when it finished).
 const gameDate = (g: GameFact): string => g.finishedAt ?? g.createdAt;
 
@@ -407,7 +447,7 @@ const longestStreaks: GlobalBlock = {
   },
 };
 
-export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard, ladyTruth, biggestLiars, longestStreaks];
+export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipeAccuracyLeaderboard, snipePointsLeaderboard, ladyTruth, biggestLiars, longestStreaks];
 
 // ── Player blocks ──────────────────────────────────────────────────────────
 const playerSummary: PlayerBlock = {
@@ -562,4 +602,26 @@ const playerStreaks: PlayerBlock = {
   },
 };
 
-export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped, playerLady, playerStreaks];
+const playerSnipePoints: PlayerBlock = {
+  id: 'snipe-points',
+  title: 'Snipe points',
+  compute: (f, pid) => {
+    let total = 0, best = 0, scoredGames = 0;
+    for (const g of f.games) {
+      const n = snipePoints(g).get(pid) ?? 0;
+      if (n > 0) { total += n; scoredGames++; if (n > best) best = n; }
+    }
+    return {
+      view: {
+        kind: 'kpis',
+        items: [
+          { label: 'Snipe points', value: String(total) },
+          { label: 'Games scored', value: String(scoredGames) },
+          { label: 'Best game', value: String(best) },
+        ],
+      },
+    };
+  },
+};
+
+export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped, playerLady, playerStreaks, playerSnipePoints];

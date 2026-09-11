@@ -241,6 +241,42 @@ describe('lady stats', () => {
   });
 });
 
+describe('snipe points', () => {
+  const snipe = (type: string, correct: boolean): GameFact['assassinations'][number] =>
+    ({ sniperKnownId: 'e1', sniperName: 'Ev1', targetKnownIds: [], snipeType: type, correct });
+  const evilTeam = [P('e1', 'Ev1', 'assassin', 'evil', true), P('e2', 'Ev2', 'morgana', 'evil', true)];
+  const us = P('u1', 'Serv', 'untrustworthy_servant', 'good', false);
+  const rowsFor = (games: GameFact[]) =>
+    (gblock('snipe-points').compute({ roster: [], games }).view as any).rows as { label: string; value: number }[];
+
+  it('every base-evil scores on a correct phase-1 snipe; untrustworthy does not', () => {
+    const rows = rowsFor([game('evil', [...evilTeam, us], [snipe('untrustworthy_servant', true)])]);
+    expect(rows.find((r) => r.label === 'Ev1')!.value).toBe(1);
+    expect(rows.find((r) => r.label === 'Ev2')!.value).toBe(1);
+    expect(rows.find((r) => r.label === 'Serv')).toBeUndefined();
+  });
+
+  it('base-evil reaches 2 and the sniped untrustworthy reaches 1 in one game', () => {
+    const g = game('evil', [...evilTeam, us], [snipe('untrustworthy_servant', true), snipe('merlin', true)]);
+    const rows = rowsFor([g]);
+    expect(rows.find((r) => r.label === 'Ev1')!.value).toBe(2);
+    expect(rows.find((r) => r.label === 'Serv')!.value).toBe(1);
+    const items = (pblock('snipe-points').compute({ roster: [], games: [g] }, 'e1').view as any).items as { label: string; value: string }[];
+    expect(items.find((i) => i.label === 'Snipe points')!.value).toBe('2');
+    expect(items.find((i) => i.label === 'Best game')!.value).toBe('2');
+  });
+
+  it('untrustworthy does not score on the phase-2 snipe if not sniped in phase 1', () => {
+    const rows = rowsFor([game('evil', [...evilTeam, us], [snipe('merlin', true)])]);
+    expect(rows.find((r) => r.label === 'Ev1')!.value).toBe(1);
+    expect(rows.find((r) => r.label === 'Serv')).toBeUndefined();
+  });
+
+  it('no points when the snipe misses', () => {
+    expect(rowsFor([game('good', [...evilTeam, us], [snipe('merlin', false)])])).toHaveLength(0);
+  });
+});
+
 describe('win streaks', () => {
   // Chronological via createdAt; won pattern for k1: W W L W
   const g2 = (created: string, won: boolean): GameFact =>
