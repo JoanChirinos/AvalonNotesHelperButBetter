@@ -117,7 +117,7 @@
     {/if}
   </div>
 
-  <div class="mx-auto w-full max-w-[110rem] p-4">
+  <div class="mx-auto w-full max-w-[160rem] p-4">
     {#if gameId}
       <GamePage {gameId} onNavigate={navigate} />
     {:else if route.startsWith('#/stats') && namespace}
