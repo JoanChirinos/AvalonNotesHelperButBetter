@@ -22,7 +22,7 @@
 
 {#if rounds.length > 0}
   <div
-    class="card shadow-sm grow basis-[32rem] max-w-2xl min-w-0 overflow-hidden"
+    class="card shadow-sm grow shrink-0 max-w-4xl overflow-hidden"
     class:bg-base-100={!result}
     style:background-color={result === 'success' ? 'oklch(var(--su) / 0.1)' : result === 'fail' ? 'oklch(var(--er) / 0.1)' : ''}
   >
