@@ -176,7 +176,8 @@
 
 <QuestTrack {gameState} />
 
-<div class="space-y-6">
+<div class="flex">
+  <div class="flex-1 min-w-0 space-y-6">
   <!-- Quest/Round History (read-only) -->
   {#if historyQuests.length > 0}
     <div class="flex flex-wrap justify-center gap-3 px-4">
@@ -319,5 +320,6 @@
         </div>
       </div>
     {/if}
+  </div>
   </div>
 </div>
