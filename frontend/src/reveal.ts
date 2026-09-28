@@ -37,6 +37,20 @@ interface RevealPart {
 const subject = (base: string, ...clauses: (string | false)[]): string =>
   base + clauses.filter(Boolean).join('');
 
+// Cards we don't physically own, and the card standing in for each.
+const CARD_FOR: Partial<Record<Role, string>> = {
+  merlin: 'Cleric',
+  mordred: 'Trickster',
+  morgana: 'Assassin',
+};
+
+// Names the stand-in card, so a player holding it knows the instruction is theirs.
+// Only used on lines telling someone to act, never on lines about what to look at.
+function named(role: Role, label: string): string {
+  const card = CARD_FOR[role];
+  return card ? `${label} represented by the ${card} card` : label;
+}
+
 // Blanket reset between steps. Only the ACTION lines name specific roles (who
 // extends a thumb / opens their eyes); the reset is generic so we never tell a
 // role to undo something it didn't do (e.g. Mordred/Oberon who never opened).
@@ -54,7 +68,7 @@ const PARTS: RevealPart[] = [
     id: 'open',
     applies: () => true,
     lines: () => [
-      { text: 'Everyone, close your eyes and extend your hand into a fist in front of you.', pause: 'long' },
+      { text: 'Everyone, close your eyes and extend your hand into a fist in front of you.', pause: 'medium' },
     ],
   },
   {
@@ -83,12 +97,12 @@ const PARTS: RevealPart[] = [
     lines: (c) => {
       const extendSubject = subject(
         'Minions of Mordred',
-        c.has('mordred') && ', except Mordred represented by the Trickster card',
+        c.has('mordred') && `, except ${named('mordred', 'Mordred')}`,
         c.has('untrustworthy_servant') && ', and the Untrustworthy Servant',
       );
       return [
         { text: `${extendSubject}, extend your thumb so Merlin will know of you.`, pause: 'short' },
-        { text: 'Merlin, open your eyes and see the agents of Evil.', pause: 'long' },
+        { text: `${named('merlin', 'Merlin')}, open your eyes and see the agents of Evil.`, pause: 'long' },
         RESET,
       ];
     },
@@ -97,10 +111,14 @@ const PARTS: RevealPart[] = [
     id: 'percival',
     applies: (c) => c.has('percival'),
     lines: (c) => {
-      const subj = subject('Merlin', c.has('morgana') && ' and Morgana represented by the Assassin card');
+      const extendSubject = subject(
+        named('merlin', 'Merlin'),
+        c.has('morgana') && ` and ${named('morgana', 'Morgana')}`,
+      );
+      const seeSubject = subject('Merlin', c.has('morgana') && ' and Morgana');
       return [
-        { text: `${subj}, extend your thumb so Percival may know of you.`, pause: 'short' },
-        { text: `Percival, open your eyes and see ${subj}.`, pause: 'long' },
+        { text: `${extendSubject}, extend your thumb so Percival may know of you.`, pause: 'short' },
+        { text: `Percival, open your eyes and see ${seeSubject}.`, pause: 'long' },
         RESET,
       ];
     },

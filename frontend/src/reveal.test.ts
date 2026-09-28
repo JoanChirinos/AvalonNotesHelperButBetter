@@ -16,9 +16,9 @@ describe('buildRevealScript', () => {
   it('base Merlin + Minions: evil see each other, Merlin sees evil, no extra parts', () => {
     const s = joined(['merlin', 'loyal_servant', 'loyal_servant', 'minion_of_mordred', 'minion_of_mordred']);
     expect(s).toMatch(/Minions of Mordred, open your eyes and look around/);
-    expect(s).toMatch(/Merlin, open your eyes and see the agents of Evil/);
+    expect(s).toMatch(/Merlin represented by the Cleric card, open your eyes and see the agents of Evil/);
     expect(s).not.toMatch(/Percival/);
-    expect(s).not.toMatch(/Cleric/);
+    expect(s).not.toMatch(/Cleric, open your eyes/);
     expect(s).not.toMatch(/Messenger/);
   });
 
@@ -36,11 +36,14 @@ describe('buildRevealScript', () => {
 
   it('Percival sees Merlin, and Morgana too when present', () => {
     const withMorgana = joined(['merlin', 'percival', 'morgana', 'minion_of_mordred']);
-    expect(withMorgana).toMatch(/Merlin and Morgana represented by the Assassin card, extend your thumb so Percival/);
-    expect(withMorgana).toMatch(/Percival, open your eyes and see Merlin and Morgana/);
+    expect(withMorgana).toMatch(
+      /Merlin represented by the Cleric card and Morgana represented by the Assassin card, extend your thumb so Percival/
+    );
+    // The "see" line names roles only; Percival reads thumbs, not cards.
+    expect(withMorgana).toMatch(/Percival, open your eyes and see Merlin and Morgana\./);
 
     const noMorgana = joined(['merlin', 'percival', 'minion_of_mordred']);
-    expect(noMorgana).toMatch(/Merlin, extend your thumb so Percival/);
+    expect(noMorgana).toMatch(/Merlin represented by the Cleric card, extend your thumb so Percival/);
     expect(noMorgana).not.toMatch(/Morgana/);
   });
 
@@ -59,7 +62,8 @@ describe('buildRevealScript', () => {
 
   it('Cleric block appears only with Cleric', () => {
     expect(joined(['merlin', 'cleric', 'minion_of_mordred'])).toMatch(/Cleric, open your eyes/);
-    expect(joined(['merlin', 'minion_of_mordred'])).not.toMatch(/Cleric/);
+    // Merlin's stand-in card still names the Cleric, so match the block's own line.
+    expect(joined(['merlin', 'minion_of_mordred'])).not.toMatch(/Cleric, open your eyes/);
   });
 
   it('Messenger block requires both Senior and Junior', () => {
@@ -84,6 +88,7 @@ describe('buildRevealScript', () => {
     const reset = script.find((l) => l.text.startsWith('Everyone, close your eyes and re-form'));
     expect(look?.pause).toBe('long');
     expect(reset?.pause).toBe('short');
+    expect(script[0].pause).toBe('medium');
   });
 });
 
