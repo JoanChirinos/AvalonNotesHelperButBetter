@@ -15,7 +15,7 @@ export function pauseMs(tier: PauseTier): number {
 export interface RevealLine {
   text: string;
   /** Pause AFTER speaking. `long` after "open your eyes and look" (players need time);
-   *  `short` after passive lines ("close your eyes", "extend your thumb"). */
+   *  `short` after passive lines ("close your eyes", "extend your hand"). */
   pause: PauseTier;
 }
 
@@ -52,7 +52,7 @@ function named(role: Role, label: string): string {
 }
 
 // Blanket reset between steps. Only the ACTION lines name specific roles (who
-// extends a thumb / opens their eyes); the reset is generic so we never tell a
+// extends a hand / opens their eyes); the reset is generic so we never tell a
 // role to undo something it didn't do (e.g. Mordred/Oberon who never opened).
 const RESET: RevealLine = {
   text: 'Everyone, close your eyes and re-form your hand into a fist.',
@@ -75,7 +75,7 @@ const PARTS: RevealPart[] = [
     id: 'cleric',
     applies: (c) => c.has('cleric'),
     lines: () => [
-      { text: 'Leader, extend your thumb if you are Evil.', pause: 'short' },
+      { text: 'Leader, extend your hand if you are Evil.', pause: 'short' },
       { text: 'Cleric, open your eyes and see whether your Leader is Good or Evil.', pause: 'long' },
       RESET,
     ],
@@ -101,7 +101,7 @@ const PARTS: RevealPart[] = [
         c.has('untrustworthy_servant') && ', and the Untrustworthy Servant',
       );
       return [
-        { text: `${extendSubject}, extend your thumb so Merlin will know of you.`, pause: 'short' },
+        { text: `${extendSubject}, extend your hand so Merlin will know of you.`, pause: 'short' },
         { text: `${named('merlin', 'Merlin')}, open your eyes and see the agents of Evil.`, pause: 'long' },
         RESET,
       ];
@@ -117,7 +117,7 @@ const PARTS: RevealPart[] = [
       );
       const seeSubject = subject('Merlin', c.has('morgana') && ' and Morgana');
       return [
-        { text: `${extendSubject}, extend your thumb so Percival may know of you.`, pause: 'short' },
+        { text: `${extendSubject}, extend your hand so Percival may know of you.`, pause: 'short' },
         { text: `Percival, open your eyes and see ${seeSubject}.`, pause: 'long' },
         RESET,
       ];
@@ -128,7 +128,7 @@ const PARTS: RevealPart[] = [
     // Senior always knows Junior (optional rule always on for us).
     applies: (c) => c.has('senior_messenger') && c.has('junior_messenger'),
     lines: () => [
-      { text: 'Junior Messenger, extend your thumb so the Senior Messenger may know you.', pause: 'short' },
+      { text: 'Junior Messenger, extend your hand so the Senior Messenger may know you.', pause: 'short' },
       { text: 'Senior Messenger, open your eyes and see the Junior Messenger.', pause: 'long' },
       RESET,
     ],

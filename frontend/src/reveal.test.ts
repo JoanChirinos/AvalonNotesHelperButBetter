@@ -22,34 +22,34 @@ describe('buildRevealScript', () => {
     expect(s).not.toMatch(/Messenger/);
   });
 
-  it('Mordred is excluded from the thumb-extend for Merlin', () => {
+  it('Mordred is excluded from the hand-extend for Merlin', () => {
     const s = joined(['merlin', 'mordred', 'minion_of_mordred']);
-    expect(s).toMatch(/Minions of Mordred, except Mordred represented by the Trickster card, extend your thumb so Merlin/);
+    expect(s).toMatch(/Minions of Mordred, except Mordred represented by the Trickster card, extend your hand so Merlin/);
   });
 
   it('Oberon is excluded from evil-sees-evil but NOT from Merlin', () => {
     const s = joined(['merlin', 'oberon', 'minion_of_mordred']);
     expect(s).toMatch(/Minions of Mordred, except Oberon, open your eyes/);
     // Merlin's extend line has no Oberon exclusion
-    expect(s).toMatch(/Minions of Mordred, extend your thumb so Merlin/);
+    expect(s).toMatch(/Minions of Mordred, extend your hand so Merlin/);
   });
 
   it('Percival sees Merlin, and Morgana too when present', () => {
     const withMorgana = joined(['merlin', 'percival', 'morgana', 'minion_of_mordred']);
     expect(withMorgana).toMatch(
-      /Merlin represented by the Cleric card and Morgana represented by the Assassin card, extend your thumb so Percival/
+      /Merlin represented by the Cleric card and Morgana represented by the Assassin card, extend your hand so Percival/
     );
-    // The "see" line names roles only; Percival reads thumbs, not cards.
+    // The "see" line names roles only; Percival reads hands, not cards.
     expect(withMorgana).toMatch(/Percival, open your eyes and see Merlin and Morgana\./);
 
     const noMorgana = joined(['merlin', 'percival', 'minion_of_mordred']);
-    expect(noMorgana).toMatch(/Merlin represented by the Cleric card, extend your thumb so Percival/);
+    expect(noMorgana).toMatch(/Merlin represented by the Cleric card, extend your hand so Percival/);
     expect(noMorgana).not.toMatch(/Morgana/);
   });
 
   it('Untrustworthy Servant extends with the minions for Merlin', () => {
     const s = joined(['merlin', 'untrustworthy_servant', 'minion_of_mordred']);
-    expect(s).toMatch(/and the Untrustworthy Servant, extend your thumb so Merlin/);
+    expect(s).toMatch(/and the Untrustworthy Servant, extend your hand so Merlin/);
   });
 
   it('reset lines are generic (no role-specific re-form/close)', () => {
