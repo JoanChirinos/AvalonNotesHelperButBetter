@@ -9,7 +9,7 @@ const joined = (roles: Role[]) => textOf(roles).join('\n');
 describe('buildRevealScript', () => {
   it('always brackets the script with the open/close lines', () => {
     const lines = textOf(['merlin', 'minion_of_mordred']);
-    expect(lines[0]).toMatch(/close your eyes and extend/i);
+    expect(lines[0]).toMatch(/close your eyes and form your hand into a fist/i);
     expect(lines[lines.length - 1]).toBe('Everyone, open your eyes.');
   });
 

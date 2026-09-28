@@ -68,7 +68,7 @@ const PARTS: RevealPart[] = [
     id: 'open',
     applies: () => true,
     lines: () => [
-      { text: 'Everyone, close your eyes and extend your hand into a fist in front of you.', pause: 'medium' },
+      { text: 'Everyone, close your eyes and form your hand into a fist in front of you.', pause: 'medium' },
     ],
   },
   {
