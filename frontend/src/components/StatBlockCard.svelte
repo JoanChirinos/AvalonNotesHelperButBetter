@@ -33,13 +33,16 @@
   let dvGroup = $derived(
     dv ? (dv.groups.find((g) => g.id === selectedGroup) ?? dv.groups[0]) : null
   );
+  // Bars are sized from the value ROUNDED to the precision we print, so a row
+  // labelled 1.00x never renders a visible lean.
+  const dvRound = (v: number) => Math.round(v * 100) / 100;
   let dvSpan = $derived(
     dv && dvGroup && dvGroup.rows.length
-      ? Math.max(0.05, ...dvGroup.rows.map((r) => Math.abs(r.value - dv.center)))
+      ? Math.max(0.05, ...dvGroup.rows.map((r) => Math.abs(dvRound(r.value) - dv.center)))
       : 1
   );
   const dvHalf = (value: number, center: number, span: number) =>
-    (Math.abs(value - center) / span) * 50;
+    (Math.abs(dvRound(value) - center) / span) * 50;
 </script>
 
 <div class="card bg-base-100 shadow-sm">

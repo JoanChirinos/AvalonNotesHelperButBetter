@@ -344,6 +344,15 @@ describe('luck blocks', () => {
     expect(rows.find((r) => r.Dealt === 'Merlin')!.Games).toBe(1);
   });
 
+  it('expects a multi-copy role at copies/n, not 1/n', () => {
+    // 2 of the 7 are Loyal Servants, so each seat had a 2/7 shot at one.
+    const facts: Facts = { roster: [], games: Array.from({ length: 7 }, sevenPlayer) };
+    const rows = (pblock('luck').compute(facts, 'k6').view as any).rows as Record<string, string | number>[];
+    const loyal = rows.find((r) => r.Dealt === 'Loyal Servant')!;
+    expect(loyal.Games).toBe(7);
+    expect(loyal.Expected).toBe((7 * (2 / 7)).toFixed(1));
+  });
+
   it('skips games whose roles were never recorded', () => {
     const partial = game('good', [P('k1', 'k1', null, null, null), P('k2', 'k2', 'morgana', 'evil', null)]);
     const facts: Facts = { roster: [], games: [sevenPlayer(), partial] };

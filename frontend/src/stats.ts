@@ -283,14 +283,15 @@ function goodTrial(g: GameFact, pid: string): Trial | null {
   return { hit: me.team === 'good', p: good / n };
 }
 
-// Any specific role: only games where that role was actually dealt count, and
-// every player at the table had an equal 1/n shot at it.
+// Any specific role: only games where that role was dealt count. Probability is
+// copies/n, so multi-copy roles (Loyal Servant, Minion of Mordred) are correct too.
 const roleTrial = (role: Role) => (g: GameFact, pid: string): Trial | null => {
   if (!rolesComplete(g)) return null;
-  if (!g.participations.some((p) => p.role === role)) return null;
+  const copies = g.participations.filter((p) => p.role === role).length;
+  if (copies === 0) return null;
   const me = g.participations.find((p) => p.knownPlayerId === pid);
   if (!me) return null;
-  return { hit: me.role === role, p: 1 / g.participations.length };
+  return { hit: me.role === role, p: copies / g.participations.length };
 };
 
 interface LuckQuestion {
@@ -305,9 +306,14 @@ const LUCK_QUESTIONS: LuckQuestion[] = [
   { id: 'good', label: 'Good', trial: goodTrial },
   { id: 'merlin', label: 'Merlin', trial: roleTrial('merlin') },
   { id: 'percival', label: 'Percival', trial: roleTrial('percival') },
-  { id: 'morgana', label: 'Morgana', trial: roleTrial('morgana') },
-  { id: 'mordred', label: 'Mordred', trial: roleTrial('mordred') },
+  { id: 'senior_messenger', label: 'Senior Messenger', trial: roleTrial('senior_messenger') },
+  { id: 'junior_messenger', label: 'Junior Messenger', trial: roleTrial('junior_messenger') },
   { id: 'untrustworthy_servant', label: 'Untrustworthy Servant', trial: roleTrial('untrustworthy_servant') },
+  { id: 'loyal_servant', label: 'Loyal Servant', trial: roleTrial('loyal_servant') },
+  { id: 'mordred', label: 'Mordred', trial: roleTrial('mordred') },
+  { id: 'morgana', label: 'Morgana', trial: roleTrial('morgana') },
+  { id: 'evil_messenger', label: 'Evil Messenger', trial: roleTrial('evil_messenger') },
+  { id: 'minion_of_mordred', label: 'Minion of Mordred', trial: roleTrial('minion_of_mordred') },
 ];
 
 function playerLuck(f: Facts, pid: string, q: LuckQuestion): LuckStat | null {
