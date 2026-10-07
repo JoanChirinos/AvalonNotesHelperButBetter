@@ -25,6 +25,21 @@
   let lbMax = $derived(
     view.kind === 'leaderboard' ? Math.max(1, ...view.rows.map((r) => r.value)) : 1
   );
+
+  // Diverging bars: a switchable series, scaled symmetrically around the center
+  // so the distance left/right of center is comparable between rows.
+  let selectedGroup = $state('');
+  let dv = $derived(view.kind === 'diverging' ? view : null);
+  let dvGroup = $derived(
+    dv ? (dv.groups.find((g) => g.id === selectedGroup) ?? dv.groups[0]) : null
+  );
+  let dvSpan = $derived(
+    dv && dvGroup && dvGroup.rows.length
+      ? Math.max(0.05, ...dvGroup.rows.map((r) => Math.abs(r.value - dv.center)))
+      : 1
+  );
+  const dvHalf = (value: number, center: number, span: number) =>
+    (Math.abs(value - center) / span) * 50;
 </script>
 
 <div class="card bg-base-100 shadow-sm">
@@ -80,7 +95,7 @@
               <div class="relative h-4 flex-1 rounded bg-base-200">
                 <div class="absolute inset-y-0 left-0 rounded bg-primary" style:width={`${(row.value / lbMax) * 100}%`}></div>
               </div>
-              <span class="w-24 shrink-0 text-right text-xs text-base-content/70 tabular-nums">{row.display}</span>
+              <span class="w-24 shrink-0 whitespace-nowrap text-right text-xs text-base-content/70 tabular-nums">{row.display}</span>
             </div>
           {/each}
         </div>
@@ -127,6 +142,56 @@
 
     {:else if view.kind === 'timeseries'}
       <TimeSeriesChart dates={view.dates} />
+
+    {:else if dv && dvGroup}
+      {#if dv.groups.length > 1}
+        <select class="select select-sm w-full max-w-[14rem]" bind:value={selectedGroup}>
+          {#each dv.groups as g}
+            <option value={g.id}>{g.label}</option>
+          {/each}
+        </select>
+      {/if}
+
+      {#if dvGroup.rows.length === 0}
+        <p class="text-sm text-base-content/50">Not enough data yet.</p>
+      {:else}
+        <div class="space-y-1.5">
+          {#each dvGroup.rows as row, i}
+            <div class="flex items-center gap-2 text-sm">
+              <span class="w-4 text-right text-xs text-base-content/40 tabular-nums">{i + 1}</span>
+              <span class="w-28 shrink-0 truncate font-medium">{row.label}</span>
+              <div class="relative h-4 flex-1 rounded bg-base-200">
+                <div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-base-content/30"></div>
+                {#if row.value >= dv.center}
+                  <div
+                    class="absolute inset-y-0 left-1/2 rounded-r bg-success"
+                    style:width={`${dvHalf(row.value, dv.center, dvSpan)}%`}
+                  ></div>
+                {:else}
+                  <div
+                    class="absolute inset-y-0 right-1/2 rounded-l bg-error"
+                    style:width={`${dvHalf(row.value, dv.center, dvSpan)}%`}
+                  ></div>
+                {/if}
+              </div>
+              <span class="w-28 shrink-0 whitespace-nowrap text-right text-xs text-base-content/70 tabular-nums">
+                {row.display}
+              </span>
+            </div>
+          {/each}
+
+          <div class="flex items-center gap-2 pt-1">
+            <span class="w-4"></span>
+            <span class="w-28 shrink-0"></span>
+            <div class="flex flex-1 justify-between text-[10px] text-base-content/40 tabular-nums">
+              <span>{(dv.center - dvSpan).toFixed(2)}{dv.unit ?? ''}</span>
+              <span>{dv.center.toFixed(2)}{dv.unit ?? ''}</span>
+              <span>{(dv.center + dvSpan).toFixed(2)}{dv.unit ?? ''}</span>
+            </div>
+            <span class="w-28 shrink-0"></span>
+          </div>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>

@@ -144,7 +144,14 @@ export type WidgetSpec =
   | { kind: 'leaderboard'; rows: { label: string; value: number; display: string }[] }
   | { kind: 'table'; columns: { key: string; label: string; align?: 'left' | 'right' }[]; rows: Record<string, string | number>[] }
   | { kind: 'heatcells'; cells: { label: string; value: number }[] }
-  | { kind: 'timeseries'; dates: string[] };
+  | { kind: 'timeseries'; dates: string[] }
+  // Bars measured from `center` rather than zero; one switchable series per group.
+  | {
+      kind: 'diverging';
+      center: number;
+      unit?: string;
+      groups: { id: string; label: string; rows: { label: string; value: number; display: string }[] }[];
+    };
 
 export interface StatResult {
   view: WidgetSpec;
@@ -266,14 +273,14 @@ export function luckStat(trials: Trial[]): LuckStat | null {
 const rolesComplete = (g: GameFact): boolean =>
   g.participations.length > 0 && g.participations.every((p) => p.role !== null);
 
-function evilTrial(g: GameFact, pid: string): Trial | null {
+function goodTrial(g: GameFact, pid: string): Trial | null {
   if (!rolesComplete(g)) return null;
   const me = g.participations.find((p) => p.knownPlayerId === pid);
   if (!me) return null;
   const n = g.participations.length;
-  const evil = g.participations.filter((p) => p.team === 'evil').length;
-  if (evil === 0 || evil === n) return null;
-  return { hit: me.team === 'evil', p: evil / n };
+  const good = g.participations.filter((p) => p.team === 'good').length;
+  if (good === 0 || good === n) return null;
+  return { hit: me.team === 'good', p: good / n };
 }
 
 // Any specific role: only games where that role was actually dealt count, and
@@ -289,16 +296,14 @@ const roleTrial = (role: Role) => (g: GameFact, pid: string): Trial | null => {
 interface LuckQuestion {
   id: string;
   label: string;
-  /** Also render a whole-namespace leaderboard for this question. */
-  leaderboard?: boolean;
   trial: (g: GameFact, pid: string) => Trial | null;
 }
 
-// Add a question here: it joins every player's luck table automatically, and gets
-// a global leaderboard too when `leaderboard` is set.
+// Add a question here and it shows up in the global dropdown and every player's
+// luck table automatically.
 const LUCK_QUESTIONS: LuckQuestion[] = [
-  { id: 'evil', label: 'Evil', leaderboard: true, trial: evilTrial },
-  { id: 'merlin', label: 'Merlin', leaderboard: true, trial: roleTrial('merlin') },
+  { id: 'good', label: 'Good', trial: goodTrial },
+  { id: 'merlin', label: 'Merlin', trial: roleTrial('merlin') },
   { id: 'percival', label: 'Percival', trial: roleTrial('percival') },
   { id: 'morgana', label: 'Morgana', trial: roleTrial('morgana') },
   { id: 'assassin', label: 'Assassin', trial: roleTrial('assassin') },
@@ -323,27 +328,31 @@ function rosterOf(f: Facts): { id: string; name: string }[] {
 
 const fmtP = (p: number): string => (p < 0.01 ? '<0.01' : p.toFixed(2));
 
-function luckLeaderboard(q: LuckQuestion): GlobalBlock {
-  return {
-    id: `luck-${q.id}`,
-    title: `${q.label} luck`,
-    compute: (f) => {
-      const rows = rosterOf(f)
+// One block, one series per question, picked from a dropdown. Bars diverge from
+// 1.00x so "more than the deal owed" reads right and "less" reads left.
+const luckBlock: GlobalBlock = {
+  id: 'luck',
+  title: 'Luck of the deal',
+  compute: (f) => {
+    const groups = LUCK_QUESTIONS.map((q) => ({
+      id: q.id,
+      label: q.label,
+      rows: rosterOf(f)
         .map((r) => ({ name: r.name, stat: playerLuck(f, r.id, q) }))
         .filter((r): r is { name: string; stat: LuckStat } => r.stat !== null && r.stat.games >= MIN_LUCK_GAMES)
         .map((r) => ({
           label: r.name,
           value: r.stat.skew,
-          display: `${r.stat.skew.toFixed(2)}× · ${r.stat.observed} vs ${r.stat.expected.toFixed(1)}`,
+          display: `${r.stat.skew.toFixed(2)}× · ${r.stat.observed}/${r.stat.expected.toFixed(1)}`,
         }))
-        .sort((a, b) => b.value - a.value);
-      return {
-        view: { kind: 'leaderboard', rows },
-        note: `got vs expected, ${MIN_LUCK_GAMES}+ games`,
-      };
-    },
-  };
-}
+        .sort((a, b) => b.value - a.value),
+    }));
+    return {
+      view: { kind: 'diverging', center: 1, unit: '×', groups },
+      note: `dealt vs expected, ${MIN_LUCK_GAMES}+ games`,
+    };
+  },
+};
 
 // ── Global blocks ──────────────────────────────────────────────────────────
 const overview: GlobalBlock = {
@@ -581,7 +590,7 @@ export const GLOBAL_BLOCKS: GlobalBlock[] = [
   gamesOverTime,
   winRateLeaderboard,
   snipePointsLeaderboard,
-  ...LUCK_QUESTIONS.filter((q) => q.leaderboard).map(luckLeaderboard),
+  luckBlock,
   ladyTruth,
   biggestLiars,
   longestStreaks,

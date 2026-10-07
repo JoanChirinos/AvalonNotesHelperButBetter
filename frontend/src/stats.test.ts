@@ -314,11 +314,24 @@ describe('luck blocks', () => {
   const sevenPlayer = (): GameFact =>
     game('good', SEVEN.map((role, i) => P(`k${i + 1}`, `k${i + 1}`, role, teamForRole(role), null)));
 
-  it('puts an always-evil player above 1 and a never-evil one below', () => {
+  const goodRows = (facts: Facts) => {
+    const view = gblock('luck').compute(facts).view as any;
+    return view.groups.find((g: any) => g.id === 'good').rows as { label: string; value: number }[];
+  };
+
+  it('puts an always-good player above 1 and an always-evil one below', () => {
     const facts: Facts = { roster: [], games: Array.from({ length: 6 }, sevenPlayer) };
-    const rows = (gblock('luck-evil').compute(facts).view as any).rows as { label: string; value: number }[];
-    expect(rows.find((r) => r.label === 'k1')!.value).toBeGreaterThan(1);
-    expect(rows.find((r) => r.label === 'k7')!.value).toBeLessThan(1);
+    const rows = goodRows(facts);
+    expect(rows.find((r) => r.label === 'k7')!.value).toBeGreaterThan(1);
+    expect(rows.find((r) => r.label === 'k1')!.value).toBeLessThan(1);
+  });
+
+  it('exposes one switchable group per question, centered at 1', () => {
+    const facts: Facts = { roster: [], games: Array.from({ length: 6 }, sevenPlayer) };
+    const view = gblock('luck').compute(facts).view as any;
+    expect(view.kind).toBe('diverging');
+    expect(view.center).toBe(1);
+    expect(view.groups.map((g: any) => g.id)).toContain('merlin');
   });
 
   it('counts a role only in games where that role was dealt', () => {
@@ -335,7 +348,7 @@ describe('luck blocks', () => {
     const partial = game('good', [P('k1', 'k1', null, null, null), P('k2', 'k2', 'morgana', 'evil', null)]);
     const facts: Facts = { roster: [], games: [sevenPlayer(), partial] };
     const rows = (pblock('luck').compute(facts, 'k1').view as any).rows as Record<string, string | number>[];
-    expect(rows.find((r) => r.Dealt === 'Evil')!.Games).toBe(1);
+    expect(rows.find((r) => r.Dealt === 'Good')!.Games).toBe(1);
   });
 });
 
