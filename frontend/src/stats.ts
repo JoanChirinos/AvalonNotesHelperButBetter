@@ -348,7 +348,7 @@ const luckBlock: GlobalBlock = {
         .map((r) => ({
           label: r.name,
           value: r.stat.skew,
-          display: `${r.stat.skew.toFixed(2)}× · ${r.stat.observed}/${r.stat.expected.toFixed(1)}`,
+          display: `${r.stat.skew.toFixed(2)}× · ${r.stat.observed}/${r.stat.expected.toFixed(2)}`,
         }))
         .sort((a, b) => b.value - a.value),
     }));
