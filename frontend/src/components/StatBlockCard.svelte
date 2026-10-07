@@ -145,7 +145,11 @@
 
     {:else if dv && dvGroup}
       {#if dv.groups.length > 1}
-        <select class="select select-sm w-full max-w-[14rem]" bind:value={selectedGroup}>
+        <select
+          class="select select-sm w-full max-w-[14rem]"
+          value={dvGroup.id}
+          onchange={(e) => (selectedGroup = e.currentTarget.value)}
+        >
           {#each dv.groups as g}
             <option value={g.id}>{g.label}</option>
           {/each}

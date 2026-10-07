@@ -306,7 +306,6 @@ const LUCK_QUESTIONS: LuckQuestion[] = [
   { id: 'merlin', label: 'Merlin', trial: roleTrial('merlin') },
   { id: 'percival', label: 'Percival', trial: roleTrial('percival') },
   { id: 'morgana', label: 'Morgana', trial: roleTrial('morgana') },
-  { id: 'assassin', label: 'Assassin', trial: roleTrial('assassin') },
   { id: 'mordred', label: 'Mordred', trial: roleTrial('mordred') },
   { id: 'untrustworthy_servant', label: 'Untrustworthy Servant', trial: roleTrial('untrustworthy_servant') },
 ];
