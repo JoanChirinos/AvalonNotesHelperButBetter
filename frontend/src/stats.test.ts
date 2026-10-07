@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildFacts, GLOBAL_BLOCKS, PLAYER_BLOCKS, type Facts, type GameFact, type Participation, type LadyCheck } from './stats';
+import { buildFacts, GLOBAL_BLOCKS, PLAYER_BLOCKS, luckStat, poissonBinomialPmf, type Facts, type GameFact, type Participation, type LadyCheck } from './stats';
+import { teamForRole } from './constants';
 import { deriveGameResult } from './derived';
 import type { FullGameState, Role } from './types';
 
@@ -259,6 +260,82 @@ describe('snipe points', () => {
 
   it('no points when the snipe misses', () => {
     expect(rowsFor([game('good', [...evilTeam, us], [snipe('merlin', false)])])).toHaveLength(0);
+  });
+});
+
+describe('luckStat', () => {
+  const flat = (n: number, p: number, hits: number) =>
+    Array.from({ length: n }, (_, i) => ({ hit: i < hits, p }));
+
+  it('expects the table rate, not half the games', () => {
+    const s = luckStat(flat(7, 3 / 7, 7))!;
+    expect(s.observed).toBe(7);
+    expect(s.expected).toBeCloseTo(3, 10);
+    expect(s.rawSkew).toBeCloseTo(7 / 3, 10);
+  });
+
+  it('skew is 1 and z is 0 when observed matches expected', () => {
+    const s = luckStat(flat(10, 0.4, 4))!;
+    expect(s.expected).toBeCloseTo(4, 10);
+    expect(s.skew).toBeCloseTo(1, 10);
+    expect(s.z).toBeCloseTo(0, 10);
+  });
+
+  it('shrinks a tiny sample toward 1 but leaves a big one alone', () => {
+    const small = luckStat(flat(3, 0.4, 3))!;
+    const large = luckStat(flat(100, 0.4, 60))!;
+    expect(small.rawSkew).toBeCloseTo(2.5, 10);
+    expect(small.skew).toBeLessThan(1.7);
+    expect(large.rawSkew).toBeCloseTo(1.5, 10);
+    expect(large.skew).toBeGreaterThan(1.45);
+  });
+
+  it('p-value shrinks as an unlikely run gets longer', () => {
+    const five = luckStat(flat(5, 0.4, 5))!;
+    const twelve = luckStat(flat(12, 0.4, 12))!;
+    expect(five.pValue).toBeCloseTo(0.4 ** 5, 10);
+    expect(twelve.pValue).toBeLessThan(five.pValue);
+  });
+});
+
+describe('poissonBinomialPmf', () => {
+  it('is a distribution whose mean is the sum of the probabilities', () => {
+    const ps = [0.4, 0.3, 3 / 7, 0.5];
+    const pmf = poissonBinomialPmf(ps);
+    expect(pmf).toHaveLength(ps.length + 1);
+    expect(pmf.reduce((a, x) => a + x, 0)).toBeCloseTo(1, 10);
+    expect(pmf.reduce((a, x, k) => a + k * x, 0)).toBeCloseTo(ps.reduce((a, p) => a + p, 0), 10);
+  });
+});
+
+describe('luck blocks', () => {
+  // 7 players, 3 evil: a fair deal is 3/7 to be evil. k1..k3 always evil, k4 is Merlin.
+  const SEVEN: Role[] = ['assassin', 'morgana', 'mordred', 'merlin', 'percival', 'loyal_servant', 'loyal_servant'];
+  const sevenPlayer = (): GameFact =>
+    game('good', SEVEN.map((role, i) => P(`k${i + 1}`, `k${i + 1}`, role, teamForRole(role), null)));
+
+  it('puts an always-evil player above 1 and a never-evil one below', () => {
+    const facts: Facts = { roster: [], games: Array.from({ length: 6 }, sevenPlayer) };
+    const rows = (gblock('luck-evil').compute(facts).view as any).rows as { label: string; value: number }[];
+    expect(rows.find((r) => r.label === 'k1')!.value).toBeGreaterThan(1);
+    expect(rows.find((r) => r.label === 'k7')!.value).toBeLessThan(1);
+  });
+
+  it('counts a role only in games where that role was dealt', () => {
+    const noMerlin: Role[] = ['assassin', 'morgana', 'loyal_servant', 'loyal_servant', 'percival'];
+    const facts: Facts = {
+      roster: [],
+      games: [sevenPlayer(), game('good', noMerlin.map((role, i) => P(`k${i + 1}`, `k${i + 1}`, role, teamForRole(role), null)))],
+    };
+    const rows = (pblock('luck').compute(facts, 'k4').view as any).rows as Record<string, string | number>[];
+    expect(rows.find((r) => r.Dealt === 'Merlin')!.Games).toBe(1);
+  });
+
+  it('skips games whose roles were never recorded', () => {
+    const partial = game('good', [P('k1', 'k1', null, null, null), P('k2', 'k2', 'morgana', 'evil', null)]);
+    const facts: Facts = { roster: [], games: [sevenPlayer(), partial] };
+    const rows = (pblock('luck').compute(facts, 'k1').view as any).rows as Record<string, string | number>[];
+    expect(rows.find((r) => r.Dealt === 'Evil')!.Games).toBe(1);
   });
 });
 

@@ -195,6 +195,156 @@ function currentRun(seq: boolean[]): number {
   return cur;
 }
 
+// ── Luck of the deal ───────────────────────────────────────────────────────
+// A fair deal does NOT give everyone a 50% shot at Evil: it's (evil roles)/(players)
+// for that game's role set, which ranges ~33%-43%. So these compare what a player
+// actually got against what the deal owed them over the games THEY played.
+// Teams here are as DEALT (teamForRole), so the Untrustworthy Servant counts Good.
+
+interface Trial {
+  hit: boolean;
+  /** Probability of the hit for this player in this game under a fair deal. */
+  p: number;
+}
+
+export interface LuckStat {
+  games: number;
+  observed: number;
+  expected: number;
+  /** Observed/expected, shrunk toward 1 so tiny samples don't top the chart. */
+  skew: number;
+  rawSkew: number;
+  z: number;
+  /** One-sided, in the direction of the deviation. Exact (Poisson binomial). */
+  pValue: number;
+}
+
+// Pseudo-games held at the player's own baseline rate; higher = more evidence
+// required before a skew moves off 1.
+const LUCK_SHRINK = 8;
+const MIN_LUCK_GAMES = 5;
+
+// Exact distribution of hit counts over independent trials with differing
+// probabilities (Poisson binomial), by convolution. O(n^2), fine at our scale.
+export function poissonBinomialPmf(ps: number[]): number[] {
+  let dist = [1];
+  for (const p of ps) {
+    const next = new Array<number>(dist.length + 1).fill(0);
+    for (let k = 0; k < dist.length; k++) {
+      next[k] += dist[k] * (1 - p);
+      next[k + 1] += dist[k] * p;
+    }
+    dist = next;
+  }
+  return dist;
+}
+
+export function luckStat(trials: Trial[]): LuckStat | null {
+  if (trials.length === 0) return null;
+  const ps = trials.map((t) => t.p);
+  const observed = trials.filter((t) => t.hit).length;
+  const expected = ps.reduce((a, p) => a + p, 0);
+  const variance = ps.reduce((a, p) => a + p * (1 - p), 0);
+  const baseline = expected / trials.length;
+  const pmf = poissonBinomialPmf(ps);
+  const tail = observed >= expected
+    ? pmf.slice(observed).reduce((a, x) => a + x, 0)
+    : pmf.slice(0, observed + 1).reduce((a, x) => a + x, 0);
+  return {
+    games: trials.length,
+    observed,
+    expected,
+    skew: (observed + LUCK_SHRINK * baseline) / (expected + LUCK_SHRINK * baseline),
+    rawSkew: expected > 0 ? observed / expected : 1,
+    z: variance > 0 ? (observed - expected) / Math.sqrt(variance) : 0,
+    pValue: Math.min(1, tail),
+  };
+}
+
+// Only fully-revealed games can be scored; a missing role would corrupt both the
+// hit and the denominator.
+const rolesComplete = (g: GameFact): boolean =>
+  g.participations.length > 0 && g.participations.every((p) => p.role !== null);
+
+function evilTrial(g: GameFact, pid: string): Trial | null {
+  if (!rolesComplete(g)) return null;
+  const me = g.participations.find((p) => p.knownPlayerId === pid);
+  if (!me) return null;
+  const n = g.participations.length;
+  const evil = g.participations.filter((p) => p.team === 'evil').length;
+  if (evil === 0 || evil === n) return null;
+  return { hit: me.team === 'evil', p: evil / n };
+}
+
+// Any specific role: only games where that role was actually dealt count, and
+// every player at the table had an equal 1/n shot at it.
+const roleTrial = (role: Role) => (g: GameFact, pid: string): Trial | null => {
+  if (!rolesComplete(g)) return null;
+  if (!g.participations.some((p) => p.role === role)) return null;
+  const me = g.participations.find((p) => p.knownPlayerId === pid);
+  if (!me) return null;
+  return { hit: me.role === role, p: 1 / g.participations.length };
+};
+
+interface LuckQuestion {
+  id: string;
+  label: string;
+  /** Also render a whole-namespace leaderboard for this question. */
+  leaderboard?: boolean;
+  trial: (g: GameFact, pid: string) => Trial | null;
+}
+
+// Add a question here: it joins every player's luck table automatically, and gets
+// a global leaderboard too when `leaderboard` is set.
+const LUCK_QUESTIONS: LuckQuestion[] = [
+  { id: 'evil', label: 'Evil', leaderboard: true, trial: evilTrial },
+  { id: 'merlin', label: 'Merlin', leaderboard: true, trial: roleTrial('merlin') },
+  { id: 'percival', label: 'Percival', trial: roleTrial('percival') },
+  { id: 'morgana', label: 'Morgana', trial: roleTrial('morgana') },
+  { id: 'assassin', label: 'Assassin', trial: roleTrial('assassin') },
+  { id: 'mordred', label: 'Mordred', trial: roleTrial('mordred') },
+  { id: 'untrustworthy_servant', label: 'Untrustworthy Servant', trial: roleTrial('untrustworthy_servant') },
+];
+
+function playerLuck(f: Facts, pid: string, q: LuckQuestion): LuckStat | null {
+  const trials: Trial[] = [];
+  for (const g of f.games) {
+    const t = q.trial(g, pid);
+    if (t) trials.push(t);
+  }
+  return luckStat(trials);
+}
+
+function rosterOf(f: Facts): { id: string; name: string }[] {
+  const names = new Map<string, string>();
+  for (const g of f.games) for (const p of g.participations) names.set(p.knownPlayerId, p.name);
+  return [...names].map(([id, name]) => ({ id, name }));
+}
+
+const fmtP = (p: number): string => (p < 0.01 ? '<0.01' : p.toFixed(2));
+
+function luckLeaderboard(q: LuckQuestion): GlobalBlock {
+  return {
+    id: `luck-${q.id}`,
+    title: `${q.label} luck`,
+    compute: (f) => {
+      const rows = rosterOf(f)
+        .map((r) => ({ name: r.name, stat: playerLuck(f, r.id, q) }))
+        .filter((r): r is { name: string; stat: LuckStat } => r.stat !== null && r.stat.games >= MIN_LUCK_GAMES)
+        .map((r) => ({
+          label: r.name,
+          value: r.stat.skew,
+          display: `${r.stat.skew.toFixed(2)}× · ${r.stat.observed} vs ${r.stat.expected.toFixed(1)}`,
+        }))
+        .sort((a, b) => b.value - a.value);
+      return {
+        view: { kind: 'leaderboard', rows },
+        note: `got vs expected, ${MIN_LUCK_GAMES}+ games`,
+      };
+    },
+  };
+}
+
 // ── Global blocks ──────────────────────────────────────────────────────────
 const overview: GlobalBlock = {
   id: 'overview',
@@ -425,7 +575,17 @@ const longestStreaks: GlobalBlock = {
   },
 };
 
-export const GLOBAL_BLOCKS: GlobalBlock[] = [overview, dayOfWeek, gamesOverTime, winRateLeaderboard, snipePointsLeaderboard, ladyTruth, biggestLiars, longestStreaks];
+export const GLOBAL_BLOCKS: GlobalBlock[] = [
+  overview,
+  dayOfWeek,
+  gamesOverTime,
+  winRateLeaderboard,
+  snipePointsLeaderboard,
+  ...LUCK_QUESTIONS.filter((q) => q.leaderboard).map(luckLeaderboard),
+  ladyTruth,
+  biggestLiars,
+  longestStreaks,
+];
 
 // ── Player blocks ──────────────────────────────────────────────────────────
 const playerSummary: PlayerBlock = {
@@ -602,4 +762,36 @@ const playerSnipePoints: PlayerBlock = {
   },
 };
 
-export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped, playerLady, playerStreaks, playerSnipePoints];
+const playerLuckBlock: PlayerBlock = {
+  id: 'luck',
+  title: 'Luck of the deal',
+  compute: (f, pid) => {
+    const rows = LUCK_QUESTIONS.map((q) => ({ q, stat: playerLuck(f, pid, q) }))
+      .filter((r): r is { q: LuckQuestion; stat: LuckStat } => r.stat !== null)
+      .map(({ q, stat }) => ({
+        Dealt: q.label,
+        Games: stat.games,
+        Got: stat.observed,
+        Expected: stat.expected.toFixed(1),
+        Skew: `${stat.skew.toFixed(2)}×`,
+        p: fmtP(stat.pValue),
+      }));
+    return {
+      view: {
+        kind: 'table',
+        columns: [
+          { key: 'Dealt', label: 'Dealt' },
+          { key: 'Games', label: 'Games', align: 'right' },
+          { key: 'Got', label: 'Got', align: 'right' },
+          { key: 'Expected', label: 'Expected', align: 'right' },
+          { key: 'Skew', label: 'Skew', align: 'right' },
+          { key: 'p', label: 'p', align: 'right' },
+        ],
+        rows,
+      },
+      note: '1.00× = exactly what a fair deal owed you',
+    };
+  },
+};
+
+export const PLAYER_BLOCKS: PlayerBlock[] = [playerSummary, playerByTeam, playerByRole, playerSniped, playerLady, playerStreaks, playerSnipePoints, playerLuckBlock];
