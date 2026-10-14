@@ -128,7 +128,10 @@
       .filter(q => q.quest.result === 'success')
       .sort((a, b) => b.quest.quest_number - a.quest.quest_number)[0];
     const approved = passed?.rounds.find(r => r.round.status === 'approved');
-    return approved ? approved.team.map(t => t.player_id) : [];
+    if (!approved) return [];
+    const team = approved.team.map(t => t.player_id);
+    const king = round.leader_player_id;
+    return !team.includes(king) && team.length < teamSize ? [...team, king] : team;
   });
 
   let lastProposedTeam = $derived.by(() => {
