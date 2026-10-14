@@ -155,10 +155,17 @@
         } else {
           // Next round, next leader
           const nextLeaderIdx = (players.findIndex(p => p.id === round.leader_player_id) + 1) % players.length;
-          await api.createRound(game.id, currentQuest.quest.id, {
+          const next = await api.createRound(game.id, currentQuest.quest.id, {
             leader_player_id: players[nextLeaderIdx].id,
             team_player_ids: [],
           });
+          // A 5th rejection fails the quest, so the last proposal starts as all-approve.
+          const newRound = next.quests.find(q => q.quest.id === currentQuest.quest.id)?.rounds.at(-1);
+          if (newRound && newRound.round.round_number === 5) {
+            await api.recordVotes(game.id, newRound.round.id, {
+              votes: players.map(p => ({ player_id: p.id, vote: 'approve' as Vote })),
+            });
+          }
         }
       }
       // Reset card counts

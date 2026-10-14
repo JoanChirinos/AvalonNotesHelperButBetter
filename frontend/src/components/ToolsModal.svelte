@@ -3,7 +3,7 @@
   import type { FullGameState, Vote } from '../types';
   import { questSize } from '../constants';
   import { playerNameById } from '../derived';
-  import { Dices, Users, ThumbsUp, X, Wrench, ArrowLeft, ArrowRight, Columns3, ToggleLeft, ToggleRight } from 'lucide-svelte';
+  import { Dices, Users, ThumbsUp, X, Wrench, ArrowLeft, ArrowRight, Columns3, ToggleLeft, ToggleRight, Trophy, Repeat } from 'lucide-svelte';
 
   interface Props {
     gameState: FullGameState;
@@ -105,17 +105,40 @@
     } catch (e) { error = String(e); }
   }
 
-  async function ezApproveTeam() {
+  async function recordVotes(approve: (playerId: string) => boolean) {
     try {
-      const teamIds = new Set(currentRound.team.map(t => t.player_id));
       const votes = players.map(p => ({
         player_id: p.id,
-        vote: (teamIds.has(p.id) ? 'approve' : 'reject') as Vote,
+        vote: (approve(p.id) ? 'approve' : 'reject') as Vote,
       }));
       await api.recordVotes(game.id, round.id, { votes });
       open = false;
     } catch (e) { error = String(e); }
   }
+
+  function ezApproveTeam() {
+    const teamIds = new Set(currentRound.team.map(t => t.player_id));
+    return recordVotes(id => teamIds.has(id));
+  }
+
+  const ezApproveEveryone = () => recordVotes(() => true);
+
+  let lastPassedTeam = $derived.by(() => {
+    const passed = gameState.quests
+      .filter(q => q.quest.result === 'success')
+      .sort((a, b) => b.quest.quest_number - a.quest.quest_number)[0];
+    const approved = passed?.rounds.find(r => r.round.status === 'approved');
+    return approved ? approved.team.map(t => t.player_id) : [];
+  });
+
+  let lastProposedTeam = $derived.by(() => {
+    const earlier = gameState.quests
+      .slice()
+      .sort((a, b) => a.quest.quest_number - b.quest.quest_number)
+      .flatMap(q => q.rounds)
+      .filter(r => r.round.id !== round.id && r.team.length > 0);
+    return earlier.at(-1)?.team.map(t => t.player_id) ?? [];
+  });
 </script>
 
 <button class="btn btn-sm btn-ghost" onclick={() => open = true}>
@@ -186,11 +209,31 @@
             </button>
           </div>
 
+          <!-- Ez-Teams -->
+          {#if lastPassedTeam.length || lastProposedTeam.length}
+            <div class="divider text-xs my-1">Ez-Teams</div>
+            {#if lastPassedTeam.length}
+              <button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick={() => setTeam(lastPassedTeam)}>
+                <Trophy size={16} /> Last Passed
+              </button>
+            {/if}
+            {#if lastProposedTeam.length}
+              <button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick={() => setTeam(lastProposedTeam)}>
+                <Repeat size={16} /> Run It Back
+              </button>
+            {/if}
+          {/if}
+
           <!-- Ez-Approve -->
           <div class="divider text-xs my-1">Ez-Approve</div>
-          <button class="btn btn-sm btn-outline btn-success w-full justify-start gap-2" onclick={ezApproveTeam}>
-            <ThumbsUp size={16} /> Team
-          </button>
+          <div class="flex gap-2">
+            <button class="btn btn-sm btn-outline btn-success flex-1 justify-start gap-2" onclick={ezApproveTeam}>
+              <ThumbsUp size={16} /> Team
+            </button>
+            <button class="btn btn-sm btn-outline btn-success flex-1 justify-start gap-2" onclick={ezApproveEveryone}>
+              <ThumbsUp size={16} /> Everyone
+            </button>
+          </div>
         </div>
       </div>
     </div>
