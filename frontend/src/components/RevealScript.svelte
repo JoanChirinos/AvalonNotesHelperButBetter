@@ -38,12 +38,13 @@
   // (Firefox macOS lists base voices only). Novelties (Bad News, Zarvox…) sink.
   function voiceRank(v: SpeechSynthesisVoice): number {
     const n = v.name;
-    if (/premium/i.test(n)) return 0;
-    if (/enhanced/i.test(n)) return 1;
-    if (/siri/i.test(n)) return 2;
-    if (/google|natural/i.test(n) || !v.localService) return 3;
-    if (/samantha|ava|allison|alex|evan|nathan|tom|serena|zoe|susan|joelle/i.test(n)) return 4;
-    return 5;
+    if (/google/i.test(n)) return 0;
+    if (/premium/i.test(n)) return 1;
+    if (/enhanced/i.test(n)) return 2;
+    if (/siri/i.test(n)) return 3;
+    if (/natural/i.test(n) || !v.localService) return 4;
+    if (/samantha|ava|allison|alex|evan|nathan|tom|serena|zoe|susan|joelle/i.test(n)) return 5;
+    return 6;
   }
 
   const byRank = (a: SpeechSynthesisVoice, b: SpeechSynthesisVoice) =>
