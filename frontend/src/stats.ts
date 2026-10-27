@@ -37,7 +37,8 @@ export interface GameFact {
   result: 'good' | 'evil' | null;
   createdAt: string;
   finishedAt: string | null;
-  questsDecided: number;
+  /** Decided quest results in quest order. */
+  questResults: ('success' | 'fail')[];
   participations: Participation[];
   assassinations: AssassinationFact[];
   ladyChecks: LadyCheck[];
@@ -62,11 +63,10 @@ export function buildFacts(games: FullGameState[]): Facts {
     const knownIdByPlayerId = new Map(g.players.map((p) => [p.id, p.known_player_id]));
     const msgTotals = { good: totalGoodMessages(g), evil: totalEvilMessages(g) };
 
-    let questsDecided = 0;
-    for (const q of g.quests) {
-      const r = deriveQuestResult(q.quest, g.players.length, q.quest.quest_number === 5 ? msgTotals : undefined);
-      if (r) questsDecided++;
-    }
+    const questResults = [...g.quests]
+      .sort((a, b) => a.quest.quest_number - b.quest.quest_number)
+      .map((q) => deriveQuestResult(q.quest, g.players.length, q.quest.quest_number === 5 ? msgTotals : undefined))
+      .filter((r): r is 'success' | 'fail' => r !== null);
 
     const participations: Participation[] = g.players.map((p) => {
       const name = nameByKnownId.get(p.known_player_id) ?? '???';
@@ -123,7 +123,7 @@ export function buildFacts(games: FullGameState[]): Facts {
       result,
       createdAt: g.game.created_at,
       finishedAt: g.game.finished_at,
-      questsDecided,
+      questResults,
       participations,
       assassinations,
       ladyChecks,
@@ -359,6 +359,58 @@ const luckBlock: GlobalBlock = {
   },
 };
 
+// Every undecided scoreline, in play order: 0-0, then 1-0/0-1, and so on.
+const SCORELINES: [number, number][] = [];
+for (let played = 0; played <= 4; played++) {
+  for (let s = Math.min(played, 2); s >= 0 && played - s <= 2; s--) SCORELINES.push([s, played - s]);
+}
+
+// The scorelines a game passed through before it was decided, starting at 0-0.
+function scorelinesVisited(results: ('success' | 'fail')[]): string[] {
+  let s = 0, f = 0;
+  const visited = ['0-0'];
+  for (const r of results) {
+    if (r === 'success') s++; else f++;
+    if (s >= 3 || f >= 3) break;
+    visited.push(`${s}-${f}`);
+  }
+  return visited;
+}
+
+const comebacks: GlobalBlock = {
+  id: 'comebacks',
+  title: 'Good wins from each score',
+  compute: (f) => {
+    const decided = f.games.filter((g) => g.result !== null);
+    const tally = new Map<string, { games: number; good: number }>();
+    for (const g of decided) {
+      for (const key of scorelinesVisited(g.questResults)) {
+        const e = tally.get(key) ?? { games: 0, good: 0 };
+        e.games++;
+        if (g.result === 'good') e.good++;
+        tally.set(key, e);
+      }
+    }
+    const rows = SCORELINES.map(([s, fl]) => {
+      const e = tally.get(`${s}-${fl}`) ?? { games: 0, good: 0 };
+      return { Score: `${s}-${fl}`, Games: e.games, 'Good wins': e.good, 'Good %': pct(e.good, e.games) };
+    }).filter((r) => r.Games > 0);
+    return {
+      view: {
+        kind: 'table',
+        columns: [
+          { key: 'Score', label: 'Passes-Fails' },
+          { key: 'Games', label: 'Games', align: 'right' },
+          { key: 'Good wins', label: 'Good wins', align: 'right' },
+          { key: 'Good %', label: 'Good %', align: 'right' },
+        ],
+        rows,
+      },
+      note: 'counts every decided game that passed through the score',
+    };
+  },
+};
+
 // ── Global blocks ──────────────────────────────────────────────────────────
 const overview: GlobalBlock = {
   id: 'overview',
@@ -368,7 +420,7 @@ const overview: GlobalBlock = {
     const decided = f.games.filter((g) => g.result);
     const good = decided.filter((g) => g.result === 'good').length;
     const evil = decided.filter((g) => g.result === 'evil').length;
-    const avgQuests = total ? f.games.reduce((s, g) => s + g.questsDecided, 0) / total : 0;
+    const avgQuests = total ? f.games.reduce((s, g) => s + g.questResults.length, 0) / total : 0;
     return {
       view: {
         kind: 'kpis',
@@ -594,6 +646,7 @@ export const GLOBAL_BLOCKS: GlobalBlock[] = [
   dayOfWeek,
   gamesOverTime,
   winRateLeaderboard,
+  comebacks,
   snipePointsLeaderboard,
   luckBlock,
   ladyTruth,

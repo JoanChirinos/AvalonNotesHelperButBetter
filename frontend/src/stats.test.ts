@@ -93,7 +93,7 @@ function game(
   assassinations: GameFact['assassinations'] = [],
   ladyChecks: LadyCheck[] = []
 ): GameFact {
-  return { gameId: 'g', result, createdAt: '', finishedAt: '', questsDecided: 3, participations, assassinations, ladyChecks };
+  return { gameId: 'g', result, createdAt: '', finishedAt: '', questResults: [], participations, assassinations, ladyChecks };
 }
 
 const gblock = (id: string) => GLOBAL_BLOCKS.find((b) => b.id === id)!;
@@ -361,10 +361,32 @@ describe('luck blocks', () => {
   });
 });
 
+describe('comebacks', () => {
+  it('counts each decided game once per scoreline it passed through', () => {
+    const played = (result: 'good' | 'evil' | null, questResults: ('success' | 'fail')[]): GameFact =>
+      ({ ...game(result, []), questResults });
+    const facts: Facts = {
+      roster: [],
+      games: [
+        played('good', ['fail', 'fail', 'success', 'success', 'success']),
+        played('evil', ['fail', 'fail', 'fail']),
+        played('good', ['success', 'success', 'success']),
+        played(null, ['fail', 'fail']),
+      ],
+    };
+    const rows = (gblock('comebacks').compute(facts).view as any).rows as Record<string, string | number>[];
+    const row = (score: string) => rows.find((r) => r.Score === score);
+    expect(row('0-0')).toMatchObject({ Games: 3, 'Good wins': 2 });
+    expect(row('0-2')).toMatchObject({ Games: 2, 'Good wins': 1 });
+    expect(row('2-2')).toMatchObject({ Games: 1, 'Good wins': 1 });
+    expect(row('0-3')).toBeUndefined();
+  });
+});
+
 describe('win streaks', () => {
   // Chronological via createdAt; won pattern for k1: W W L W
   const g2 = (created: string, won: boolean): GameFact =>
-    ({ gameId: created, result: won ? 'good' : 'evil', createdAt: created, finishedAt: created, questsDecided: 3,
+    ({ gameId: created, result: won ? 'good' : 'evil', createdAt: created, finishedAt: created, questResults: [],
        participations: [{ knownPlayerId: 'k1', name: 'Ann', role: 'merlin', team: 'good', won }], assassinations: [], ladyChecks: [] });
   const facts: Facts = { roster: [], games: [g2('2026-01-01', true), g2('2026-01-02', true), g2('2026-01-03', false), g2('2026-01-04', true)] };
 
