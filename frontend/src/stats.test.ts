@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildFacts, GLOBAL_BLOCKS, PLAYER_BLOCKS, luckStat, poissonBinomialPmf, type Facts, type GameFact, type Participation, type LadyCheck } from './stats';
 import { teamForRole } from './constants';
 import { deriveGameResult } from './derived';
-import type { FullGameState, Role } from './types';
+import type { FullGameState, Role, Vote } from './types';
 
 // ── Minimal builders ─────────────────────────────────────────────────────────
 function quest(n: number, result: 'success' | 'fail' | null) {
@@ -93,7 +93,7 @@ function game(
   assassinations: GameFact['assassinations'] = [],
   ladyChecks: LadyCheck[] = []
 ): GameFact {
-  return { gameId: 'g', result, createdAt: '', finishedAt: '', questResults: [], participations, assassinations, ladyChecks };
+  return { gameId: 'g', result, createdAt: '', finishedAt: '', questResults: [], participations, assassinations, ladyChecks, proposals: [] };
 }
 
 const gblock = (id: string) => GLOBAL_BLOCKS.find((b) => b.id === id)!;
@@ -383,11 +383,33 @@ describe('comebacks', () => {
   });
 });
 
+describe('rejects their own team', () => {
+  it('rates each king by their own vote, skipping unvoted proposals and small samples', () => {
+    const g = mkGame({ finished: true, players: [{ kid: 'k1', name: 'Ann' }, { kid: 'k2', name: 'Bo' }] });
+    const round = (leader: string, leaderVote: Vote | null) => ({
+      round: { id: `r${Math.random()}`, quest_id: 'q1', round_number: 1, leader_player_id: leader, status: 'rejected' },
+      team: [],
+      votes: leaderVote ? [{ id: 'v', round_id: 'r', player_id: leader, vote: leaderVote }] : [],
+    });
+    g.quests = [{
+      ...quest(1, null),
+      rounds: [
+        round('p0', 'reject'), round('p0', 'reject'), round('p0', 'approve'),
+        round('p0', 'approve'), round('p0', 'approve'), round('p0', null),
+        round('p1', 'reject'),
+      ],
+    }] as unknown as FullGameState['quests'];
+    const rows = (gblock('rejected-own-team').compute(buildFacts([g])).view as any).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ label: 'Ann', value: 2 / 5 });
+  });
+});
+
 describe('win streaks', () => {
   // Chronological via createdAt; won pattern for k1: W W L W
   const g2 = (created: string, won: boolean): GameFact =>
     ({ gameId: created, result: won ? 'good' : 'evil', createdAt: created, finishedAt: created, questResults: [],
-       participations: [{ knownPlayerId: 'k1', name: 'Ann', role: 'merlin', team: 'good', won }], assassinations: [], ladyChecks: [] });
+       participations: [{ knownPlayerId: 'k1', name: 'Ann', role: 'merlin', team: 'good', won }], assassinations: [], ladyChecks: [], proposals: [] });
   const facts: Facts = { roster: [], games: [g2('2026-01-01', true), g2('2026-01-02', true), g2('2026-01-03', false), g2('2026-01-04', true)] };
 
   it('player longest and current streak', () => {

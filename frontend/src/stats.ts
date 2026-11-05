@@ -1,4 +1,4 @@
-import type { FullGameState, Role, Team } from './types';
+import type { FullGameState, Role, Team, Vote } from './types';
 import { deriveGameResult, deriveQuestResult, teamForRole, totalGoodMessages, totalEvilMessages } from './derived';
 import { ROLE_DISPLAY_NAMES } from './constants';
 
@@ -42,6 +42,13 @@ export interface GameFact {
   participations: Participation[];
   assassinations: AssassinationFact[];
   ladyChecks: LadyCheck[];
+  proposals: Proposal[];
+}
+
+export interface Proposal {
+  leaderKnownId: string;
+  /** The leader's vote on their own team; null when no votes were recorded. */
+  leaderVote: Vote | null;
 }
 
 export interface RosterEntry {
@@ -118,6 +125,13 @@ export function buildFacts(games: FullGameState[]): Facts {
       };
     });
 
+    const proposals: Proposal[] = g.quests.flatMap((q) => q.rounds).flatMap((r) => {
+      const leaderKnownId = knownIdByPlayerId.get(r.round.leader_player_id);
+      if (!leaderKnownId) return [];
+      const leaderVote = r.votes.find((v) => v.player_id === r.round.leader_player_id)?.vote ?? null;
+      return [{ leaderKnownId, leaderVote }];
+    });
+
     return {
       gameId: g.game.id,
       result,
@@ -127,6 +141,7 @@ export function buildFacts(games: FullGameState[]): Facts {
       participations,
       assassinations,
       ladyChecks,
+      proposals,
     };
   });
 
@@ -411,6 +426,35 @@ const comebacks: GlobalBlock = {
   },
 };
 
+const MIN_PROPOSALS = 5;
+
+const rejectedOwnTeam: GlobalBlock = {
+  id: 'rejected-own-team',
+  title: 'Rejects their own team',
+  compute: (f) => {
+    const names = new Map(rosterOf(f).map((r) => [r.id, r.name]));
+    const agg = new Map<string, { made: number; rejected: number }>();
+    for (const g of f.games) {
+      for (const p of g.proposals) {
+        if (p.leaderVote === null) continue;
+        const e = agg.get(p.leaderKnownId) ?? { made: 0, rejected: 0 };
+        e.made++;
+        if (p.leaderVote === 'reject') e.rejected++;
+        agg.set(p.leaderKnownId, e);
+      }
+    }
+    const rows = [...agg]
+      .filter(([, e]) => e.made >= MIN_PROPOSALS)
+      .map(([id, e]) => ({
+        label: names.get(id) ?? '???',
+        value: e.rejected / e.made,
+        display: `${pct(e.rejected, e.made)} (${e.rejected}/${e.made})`,
+      }))
+      .sort((a, b) => b.value - a.value);
+    return { view: { kind: 'leaderboard', rows }, note: `teams proposed as king, ${MIN_PROPOSALS}+ proposals` };
+  },
+};
+
 // ── Global blocks ──────────────────────────────────────────────────────────
 const overview: GlobalBlock = {
   id: 'overview',
@@ -647,6 +691,7 @@ export const GLOBAL_BLOCKS: GlobalBlock[] = [
   gamesOverTime,
   winRateLeaderboard,
   comebacks,
+  rejectedOwnTeam,
   snipePointsLeaderboard,
   luckBlock,
   ladyTruth,
