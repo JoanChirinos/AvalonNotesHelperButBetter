@@ -153,10 +153,13 @@ export function buildFacts(games: FullGameState[]): Facts {
 }
 
 // ── Widgets ──────────────────────────────────────────────────────────────────
+export interface LeaderboardRow { label: string; value: number; display: string }
+
 export type WidgetSpec =
   | { kind: 'kpis'; items: { label: string; value: string }[] }
   | { kind: 'bars'; segments: { label: string; value: number; tone: 'good' | 'evil' | 'neutral' }[] }
-  | { kind: 'leaderboard'; rows: { label: string; value: number; display: string }[] }
+  // `sorts` offers alternate orderings of the same rows behind a picker; `rows` is the default.
+  | { kind: 'leaderboard'; rows: LeaderboardRow[]; sorts?: { id: string; label: string; rows: LeaderboardRow[] }[] }
   | { kind: 'table'; columns: { key: string; label: string; align?: 'left' | 'right' }[]; rows: Record<string, string | number>[] }
   | { kind: 'heatcells'; cells: { label: string; value: number }[] }
   | { kind: 'timeseries'; dates: string[] }
@@ -443,15 +446,27 @@ const rejectedOwnTeam: GlobalBlock = {
         agg.set(p.leaderKnownId, e);
       }
     }
-    const rows = [...agg]
+    const display = (e: { made: number; rejected: number }) => `${pct(e.rejected, e.made)} (${e.rejected}/${e.made})`;
+    const byRatio = [...agg]
       .filter(([, e]) => e.made >= MIN_PROPOSALS)
-      .map(([id, e]) => ({
-        label: names.get(id) ?? '???',
-        value: e.rejected / e.made,
-        display: `${pct(e.rejected, e.made)} (${e.rejected}/${e.made})`,
-      }))
+      .map(([id, e]) => ({ label: names.get(id) ?? '???', value: e.rejected / e.made, display: display(e) }))
       .sort((a, b) => b.value - a.value);
-    return { view: { kind: 'leaderboard', rows }, note: `teams proposed as king, ${MIN_PROPOSALS}+ proposals` };
+    // A raw count needs no sample-size guard, so everyone with a rejection shows.
+    const byCount = [...agg]
+      .filter(([, e]) => e.rejected > 0)
+      .map(([id, e]) => ({ label: names.get(id) ?? '???', value: e.rejected, display: display(e) }))
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+    return {
+      view: {
+        kind: 'leaderboard',
+        rows: byRatio,
+        sorts: [
+          { id: 'ratio', label: 'By ratio', rows: byRatio },
+          { id: 'count', label: 'By count', rows: byCount },
+        ],
+      },
+      note: `teams proposed as king; ratio needs ${MIN_PROPOSALS}+ proposals`,
+    };
   },
 };
 

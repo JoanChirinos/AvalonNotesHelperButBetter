@@ -21,10 +21,12 @@
   let barsTotal = $derived(
     view.kind === 'bars' ? view.segments.reduce((s, seg) => s + seg.value, 0) : 0
   );
+  let selectedSort = $state('');
+  let lb = $derived(view.kind === 'leaderboard' ? view : null);
+  let lbSort = $derived(lb?.sorts ? (lb.sorts.find((x) => x.id === selectedSort) ?? lb.sorts[0]) : null);
+  let lbRows = $derived(lbSort ? lbSort.rows : (lb?.rows ?? []));
   // For leaderboards: max value so bars are proportional.
-  let lbMax = $derived(
-    view.kind === 'leaderboard' ? Math.max(1, ...view.rows.map((r) => r.value)) : 1
-  );
+  let lbMax = $derived(Math.max(1, ...lbRows.map((r) => r.value)));
 
   // Diverging bars: a switchable series, scaled symmetrically around the center
   // so the distance left/right of center is comparable between rows.
@@ -86,12 +88,23 @@
         </div>
       {/if}
 
-    {:else if view.kind === 'leaderboard'}
-      {#if view.rows.length === 0}
+    {:else if lb}
+      {#if lb.sorts && lbSort}
+        <select
+          class="select select-sm w-full max-w-[14rem]"
+          value={lbSort.id}
+          onchange={(e) => (selectedSort = e.currentTarget.value)}
+        >
+          {#each lb.sorts as s}
+            <option value={s.id}>{s.label}</option>
+          {/each}
+        </select>
+      {/if}
+      {#if lbRows.length === 0}
         <p class="text-sm text-base-content/50">Not enough data yet.</p>
       {:else}
         <div class="space-y-1.5">
-          {#each view.rows as row, i}
+          {#each lbRows as row, i}
             <div class="flex items-center gap-2 text-sm">
               <span class="w-4 text-right text-xs text-base-content/40 tabular-nums">{i + 1}</span>
               <span class="w-28 shrink-0 truncate font-medium">{row.label}</span>
