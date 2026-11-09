@@ -43,7 +43,7 @@
   const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 
   function flip() {
-    if (flipping || candidates.length < 2) return;
+    if (flipping || candidates.length === 0) return;
     const names = candidates.map((p) => playerNameById(gameState, p.id));
     const n = names.length;
     const pick = randomInt(n);
@@ -99,6 +99,9 @@
 
   onDestroy(() => cancelAnimationFrame(frame));
 
+  // Shrink long names to fit the face instead of truncating them.
+  const nameSize = (name: string) => `${Math.min(16, 92 / (Math.max(name.length, 1) * 0.62))}px`;
+
   // Shadow shrinks and fades as the coin rises.
   let shadowScale = $derived(1 - Math.min(lift, 95) / 140);
   // Light sweeps across the face as it turns.
@@ -116,10 +119,10 @@
     <div class="coin-stage mb-6" style:transform={`translate(${drift}px, ${-lift}px)`}>
       <div class="coin" style:transform={`rotateX(${angle}deg)`}>
         <div class="face" style:--sheen={`${sheen}%`}>
-          <span class="name">{frontName || '?'}</span>
+          <span class="name" style:font-size={nameSize(frontName)}>{frontName || '?'}</span>
         </div>
         <div class="face back" style:--sheen={`${100 - sheen}%`}>
-          <span class="name">{backName || '?'}</span>
+          <span class="name" style:font-size={nameSize(backName)}>{backName || '?'}</span>
         </div>
       </div>
     </div>
@@ -128,8 +131,8 @@
   <div class="h-6 text-center">
     {#if winner}
       <p class="text-lg font-semibold">{winner}</p>
-    {:else if candidates.length < 2}
-      <p class="text-xs text-base-content/60">Tap at least two players to put them on the coin.</p>
+    {:else if candidates.length === 0}
+      <p class="text-xs text-base-content/60">Tap players to put them on the coin.</p>
     {/if}
   </div>
 
@@ -147,7 +150,7 @@
     {/each}
   </div>
 
-  <button class="btn btn-sm btn-primary w-full" disabled={flipping || candidates.length < 2} onclick={flip}>
+  <button class="btn btn-sm btn-primary w-full" disabled={flipping || candidates.length === 0} onclick={flip}>
     {winner ? 'Flip again' : 'Flip'}
   </button>
 </div>
@@ -185,11 +188,8 @@
   }
   .name {
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
     text-align: center;
-    font-size: 1rem;
     font-weight: 800;
     letter-spacing: 0.02em;
     color: #713f12;
