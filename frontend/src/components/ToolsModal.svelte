@@ -146,7 +146,7 @@
   });
 </script>
 
-<button class="btn btn-sm btn-ghost" onclick={() => open = true}>
+<button class="btn btn-sm btn-ghost" onclick={() => { coinOpen = false; open = true; }}>
   <Wrench size={16} />
 </button>
 
@@ -157,9 +157,22 @@
     <div class="card bg-base-100 shadow-xl w-full max-w-sm">
       <div class="card-body p-4">
         <div class="flex items-center justify-between mb-2">
-          <h3 class="card-title text-base">Tools</h3>
+          <h3 class="card-title text-base">
+            {#if coinOpen}
+              <button class="btn btn-ghost btn-sm btn-square" onclick={() => coinOpen = false} aria-label="Back to tools">
+                <ArrowLeft size={16} />
+              </button>
+              Flip a Coin
+            {:else}
+              Tools
+            {/if}
+          </h3>
           <button class="btn btn-ghost btn-sm" onclick={() => open = false}><X size={16} /></button>
         </div>
+
+        {#if coinOpen}
+          <CoinFlip {gameState} />
+        {:else}
 
         {#if error}
           <div class="alert alert-error alert-sm mb-2">
@@ -188,7 +201,7 @@
           <button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick={randomTeam}>
             <Users size={16} /> Random Team
           </button>
-          <button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick={() => { open = false; coinOpen = true; }}>
+          <button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick={() => coinOpen = true}>
             <Coins size={16} /> Flip a Coin
           </button>
 
@@ -243,11 +256,8 @@
             </button>
           </div>
         </div>
+        {/if}
       </div>
     </div>
   </div>
-{/if}
-
-{#if coinOpen}
-  <CoinFlip {gameState} onClose={() => (coinOpen = false)} />
 {/if}

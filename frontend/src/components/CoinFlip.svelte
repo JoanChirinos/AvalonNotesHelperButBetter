@@ -2,14 +2,11 @@
   import { onDestroy } from 'svelte';
   import type { FullGameState } from '../types';
   import { playerNameById } from '../derived';
-  import { X } from 'lucide-svelte';
-
   interface Props {
     gameState: FullGameState;
-    onClose: () => void;
   }
 
-  let { gameState, onClose }: Props = $props();
+  let { gameState }: Props = $props();
 
   let selected = $state<string[]>([]);
   let candidates = $derived(gameState.players.filter((p) => selected.includes(p.id)));
@@ -56,8 +53,8 @@
     winner = null;
 
     const finalAngle = turns * 180;
-    const height = 170 + randomInt(60);
-    const sideways = randomInt(81) - 40;
+    const height = 70 + randomInt(25);
+    const sideways = randomInt(41) - 20;
 
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
       angle = finalAngle;
@@ -85,7 +82,7 @@
         const s = (t - flightMs) / settleMs;
         const decay = (1 - s) ** 2;
         angle = finalAngle + 18 * decay * Math.sin(s * Math.PI * 5);
-        lift = 22 * decay * Math.abs(Math.sin(s * Math.PI * 2));
+        lift = 14 * decay * Math.abs(Math.sin(s * Math.PI * 2));
         drift = sideways;
       } else {
         angle = finalAngle;
@@ -103,26 +100,20 @@
   onDestroy(() => cancelAnimationFrame(frame));
 
   // Shadow shrinks and fades as the coin rises.
-  let shadowScale = $derived(1 - Math.min(lift, 230) / 330);
+  let shadowScale = $derived(1 - Math.min(lift, 95) / 140);
   // Light sweeps across the face as it turns.
   let sheen = $derived(50 + 45 * Math.sin((angle * Math.PI) / 180));
 </script>
 
-<div class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-base-300 p-6">
-  <button class="btn btn-ghost btn-sm absolute right-4 top-4" onclick={onClose} aria-label="Close">
-    <X size={20} />
-  </button>
-
-  <h2 class="text-2xl font-bold">Flip a Coin</h2>
-
-  <div class="relative flex h-80 w-full max-w-md items-end justify-center">
+<div class="flex flex-col items-center gap-3">
+  <div class="relative flex h-60 w-full items-end justify-center">
     <div
-      class="absolute bottom-6 h-5 w-36 rounded-[50%] bg-black/30 blur-md"
+      class="absolute bottom-3 h-3 w-24 rounded-[50%] bg-black/30 blur-md"
       style:transform={`translateX(${drift}px) scale(${shadowScale})`}
       style:opacity={0.35 + 0.65 * shadowScale}
     ></div>
 
-    <div class="coin-stage mb-10" style:transform={`translate(${drift}px, ${-lift}px)`}>
+    <div class="coin-stage mb-6" style:transform={`translate(${drift}px, ${-lift}px)`}>
       <div class="coin" style:transform={`rotateX(${angle}deg)`}>
         <div class="face" style:--sheen={`${sheen}%`}>
           <span class="name">{frontName || '?'}</span>
@@ -134,18 +125,18 @@
     </div>
   </div>
 
-  <div class="h-8 text-center">
+  <div class="h-6 text-center">
     {#if winner}
-      <p class="text-xl font-semibold">{winner}</p>
+      <p class="text-lg font-semibold">{winner}</p>
     {:else if candidates.length < 2}
-      <p class="text-sm text-base-content/60">Tap at least two players to put them on the coin.</p>
+      <p class="text-xs text-base-content/60">Tap at least two players to put them on the coin.</p>
     {/if}
   </div>
 
-  <div class="flex max-w-xl flex-wrap justify-center gap-2">
+  <div class="flex flex-wrap justify-center gap-1">
     {#each gameState.players as p (p.id)}
       <button
-        class="btn btn-sm"
+        class="btn btn-xs"
         class:btn-primary={selected.includes(p.id)}
         class:btn-outline={!selected.includes(p.id)}
         disabled={flipping}
@@ -156,12 +147,9 @@
     {/each}
   </div>
 
-  <div class="flex gap-2">
-    <button class="btn btn-primary" disabled={flipping || candidates.length < 2} onclick={flip}>
-      {winner ? 'Flip again' : 'Flip'}
-    </button>
-    <button class="btn btn-ghost" onclick={onClose}>Done</button>
-  </div>
+  <button class="btn btn-sm btn-primary w-full" disabled={flipping || candidates.length < 2} onclick={flip}>
+    {winner ? 'Flip again' : 'Flip'}
+  </button>
 </div>
 
 <style>
@@ -170,8 +158,8 @@
   }
   .coin {
     position: relative;
-    width: 11rem;
-    height: 11rem;
+    width: 7.5rem;
+    height: 7.5rem;
     transform-style: preserve-3d;
   }
   .face {
@@ -180,16 +168,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1.25rem;
+    padding: 0.85rem;
     border-radius: 9999px;
     backface-visibility: hidden;
     background:
       linear-gradient(115deg, transparent calc(var(--sheen) - 18%), rgb(255 255 255 / 0.45) var(--sheen), transparent calc(var(--sheen) + 18%)),
       radial-gradient(circle at 35% 30%, #fde68a, #eab308 45%, #a16207 100%);
     box-shadow:
-      inset 0 0 0 6px #ca8a04,
-      inset 0 0 0 9px #fde68a,
-      inset 0 0 0 11px #a16207,
+      inset 0 0 0 4px #ca8a04,
+      inset 0 0 0 6px #fde68a,
+      inset 0 0 0 8px #a16207,
       0 4px 10px rgb(0 0 0 / 0.25);
   }
   .back {
@@ -201,7 +189,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: center;
-    font-size: 1.35rem;
+    font-size: 1rem;
     font-weight: 800;
     letter-spacing: 0.02em;
     color: #713f12;
