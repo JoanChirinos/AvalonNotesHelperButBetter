@@ -3,7 +3,8 @@
   import type { FullGameState, Vote } from '../types';
   import { questSize } from '../constants';
   import { playerNameById } from '../derived';
-  import { Dices, Users, ThumbsUp, X, Wrench, ArrowLeft, ArrowRight, Columns3, ToggleLeft, ToggleRight, Trophy, Repeat } from 'lucide-svelte';
+  import { Dices, Users, ThumbsUp, X, Wrench, ArrowLeft, ArrowRight, Columns3, ToggleLeft, ToggleRight, Trophy, Repeat, Coins } from 'lucide-svelte';
+  import CoinFlip from './CoinFlip.svelte';
 
   interface Props {
     gameState: FullGameState;
@@ -12,6 +13,7 @@
   let { gameState }: Props = $props();
 
   let open = $state(false);
+  let coinOpen = $state(false);
   let teamSizeInput = $state('');
   let alternating = $state(false);
   let error = $state('');
@@ -186,6 +188,9 @@
           <button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick={randomTeam}>
             <Users size={16} /> Random Team
           </button>
+          <button class="btn btn-sm btn-outline w-full justify-start gap-2" onclick={() => { open = false; coinOpen = true; }}>
+            <Coins size={16} /> Flip a Coin
+          </button>
 
           <!-- Windows -->
           <div class="divider text-xs my-1">Windows</div>
@@ -241,4 +246,8 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if coinOpen}
+  <CoinFlip {gameState} onClose={() => (coinOpen = false)} />
 {/if}
